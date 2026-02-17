@@ -82,16 +82,24 @@
             background-color: var(--accent-color);
             color: #000;
             border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: 600;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-weight: 700;
             cursor: pointer;
-            font-size: 1rem;
-            transition: transform 0.1s;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.39);
         }
 
         button:active {
             transform: scale(0.95);
+        }
+
+        button:disabled {
+            background-color: #475569;
+            color: #94a3b8;
+            cursor: not-allowed;
+            box-shadow: none;
         }
 
         .log-table {
@@ -115,24 +123,33 @@
         .controls {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
             margin-top: 20px;
+            padding: 20px;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 16px;
         }
 
         .connection-log {
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             color: var(--text-dim);
-            margin-top: 10px;
-            max-width: 100%;
             text-align: center;
-            line-height: 1.4;
+            line-height: 1.5;
+            background: #0f172a;
+            padding: 10px 20px;
+            border-radius: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #334155;
         }
 
         .csv-btn {
             background-color: transparent;
             border: 1px solid var(--accent-color);
             color: var(--accent-color);
+            box-shadow: none;
+            padding: 8px 16px;
         }
     </style>
 </head>
@@ -172,185 +189,182 @@
                     </tr>
                 </thead>
                 <tbody id="log-body">
-                    <!-- Rows will be added here -->
                 </tbody>
             </table>
         </div>
 
         <div class="controls">
             <button id="connect-btn">デバイスに接続する</button>
-            <div id="connection-log" class="connection-log">ブラウザの接続ボタンを押してください</div>
+            <div id="connection-log" class="connection-log">システムを読み込んでいます...</div>
         </div>
     </div>
 
     <script>
-        let device, characteristic;
-        let logData = [];
-        let labels = [];
-        let dataPoints = [];
-        let currentPeak = 0;
-        let isMoving = false;
-
-        const SERVICE_UUID = 0x180C;
-        const CHARACTERISTIC_UUID = 0x2A6E;
-
-        // Chart.js Setup
-        const ctx = document.getElementById('vbtChart').getContext('2d');
-        const chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Velocity',
-                    data: dataPoints,
-                    borderColor: '#38bdf8',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    pointRadius: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { display: false },
-                    y: {
-                        suggestedMin: 0,
-                        suggestedMax: 1.5,
-                        grid: { color: '#334155' },
-                        ticks: { color: '#94a3b8' }
-                    }
-                },
-                plugins: { legend: { display: false } }
-            }
-        });
-
-        const connectBtn = document.getElementById('connect-btn');
-        const velDisplay = document.getElementById('velocity');
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-        const logBody = document.getElementById('log-body');
-        const connectionLog = document.getElementById('connection-log');
-
+        // ログ表示ユーティリティ（最初から使えるように）
         function setLog(msg, color = null) {
-            connectionLog.innerText = msg;
-            if (color) connectionLog.style.color = color;
-            else connectionLog.style.color = 'var(--text-dim)';
+            const logEl = document.getElementById('connection-log');
+            if (logEl) {
+                logEl.innerHTML = msg;
+                logEl.style.color = color || 'var(--text-dim)';
+            }
         }
 
-        connectBtn.addEventListener('click', async () => {
-            // ブラウザ対応チェック
+        // 初期ロード完了時のメイン処理
+        window.addEventListener('load', () => {
+            let device, characteristic;
+            let logData = [];
+            let labels = [];
+            let dataPoints = [];
+            let currentPeak = 0;
+            let isMoving = false;
+            let chart;
+
+            const SERVICE_UUID = 0x180C;
+            const CHARACTERISTIC_UUID = 0x2A6E;
+
+            const connectBtn = document.getElementById('connect-btn');
+            const velDisplay = document.getElementById('velocity');
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const logBody = document.getElementById('log-body');
+
+            // 1. ブラウザ対応の即時チェック
             if (!navigator.bluetooth) {
-                setLog('❌ お使いのブラウザはBluetoothに対応していません。iPhoneならBluefy、Mac/AndroidならChromeを使ってください。', '#ef4444');
-                return;
-            }
-
-            try {
-                setLog('🔍 デバイスを探しています... (VBT_Deviceを選択してください)');
-                device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'VBT_Device' }],
-                    optionalServices: [SERVICE_UUID]
-                });
-
-                setLog('🤝 デバイスと通信を開始します...');
-                const server = await device.gatt.connect();
-
-                setLog('⚙️ サービスを取得中です...');
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-
-                setLog('📥 データの受信を開始します...');
-                await characteristic.startNotifications();
-                characteristic.addEventListener('characteristicvaluechanged', handleData);
-
-                statusDot.classList.add('connected');
-                statusText.innerText = '接続完了';
-                connectBtn.innerText = '接続済み ✅';
+                setLog('❌ <b>Bluetooth非対応ブラウザです</b><br>iPhoneならApp Storeで <b>Bluefy</b> を入手してください。Mac/Androidなら <b>Chrome</b> か <b>Edge</b> を使ってください。', '#ef4444');
                 connectBtn.disabled = true;
-                setLog('✅ 準備完了！デバイスを動かして速度を測りましょう。');
+                return;
+            } else {
+                setLog('✅ 準備完了！<br>「デバイスに接続する」を押して VBT_Device を選んでください');
+            }
 
-                device.addEventListener('gattserverdisconnected', () => {
-                    statusDot.classList.remove('connected');
-                    statusText.innerText = '切断されました';
-                    connectBtn.disabled = false;
-                    connectBtn.innerText = 'デバイスに接続する';
-                    setLog('⚠️ デバイスとの接続が切れました。ボタンを押して再接続してください。', '#ef4444');
+            // 2. Chart.jsの初期化（エラーで止まらないように回避）
+            try {
+                const ctx = document.getElementById('vbtChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Velocity',
+                            data: dataPoints,
+                            borderColor: '#38bdf8',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { display: false },
+                            y: {
+                                suggestedMin: 0,
+                                suggestedMax: 1.5,
+                                grid: { color: '#334155' },
+                                ticks: { color: '#94a3b8' }
+                            }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
                 });
+            } catch (e) {
+                console.warn('Chart initialization failed', e);
+            }
 
-            } catch (error) {
-                console.error(error);
-                if (error.name === 'NotFoundError') {
-                    setLog('❌ デバイスが選択されなかったか、見つかりませんでした。', '#ef4444');
-                } else if (error.name === 'SecurityError') {
-                    setLog('❌ セキュリティ制限によりブロックされました（HTTPSで開いてください）。', '#ef4444');
-                } else {
-                    setLog('❌ エラー: ' + error.message, '#ef4444');
+            // 3. 接続処理
+            connectBtn.addEventListener('click', async () => {
+                try {
+                    setLog('🔍 <b>デバイスを探しています...</b><br>青い点滅中の VBT_Device を選択してください。');
+                    device = await navigator.bluetooth.requestDevice({
+                        filters: [{ name: 'VBT_Device' }],
+                        optionalServices: [SERVICE_UUID]
+                    });
+
+                    setLog('🤝 通信を開始しています...');
+                    const server = await device.gatt.connect();
+
+                    setLog('⚙️ サービスを取得中です...');
+                    const service = await server.getPrimaryService(SERVICE_UUID);
+                    characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                    setLog('📥 受信を開始しました！');
+                    await characteristic.startNotifications();
+                    characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                        const value = event.target.value;
+                        const velocity = value.getFloat32(0, true);
+                        const clampedVel = Math.max(0, velocity);
+
+                        // UI更新
+                        velDisplay.innerText = clampedVel.toFixed(2);
+
+                        // チャート更新
+                        if (chart) {
+                            dataPoints.push(clampedVel);
+                            labels.push('');
+                            if (dataPoints.length > 50) {
+                                dataPoints.shift();
+                                labels.shift();
+                            }
+                            chart.update('none');
+                        }
+
+                        // レップ検知
+                        if (clampedVel > 0.15) {
+                            isMoving = true;
+                            if (clampedVel > currentPeak) currentPeak = clampedVel;
+                        } else if (isMoving && clampedVel < 0.05) {
+                            if (currentPeak > 0.2) {
+                                const now = new Date();
+                                const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+                                const row = `<tr><td>${timeStr}</td><td>${currentPeak.toFixed(2)}</td></tr>`;
+                                logBody.insertAdjacentHTML('afterbegin', row);
+                                logData.push({ time: timeStr, velocity: currentPeak.toFixed(2) });
+                                if (logBody.children.length > 10) logBody.lastElementChild.remove();
+                            }
+                            currentPeak = 0;
+                            isMoving = false;
+                        }
+                    });
+
+                    statusDot.classList.add('connected');
+                    statusText.innerText = '接続完了';
+                    connectBtn.innerText = '接続済み ✅';
+                    connectBtn.disabled = true;
+                    setLog('🎉 <b>計測準備が整いました！</b><br>デバイスを動かすと速度が表示されます。', '#38bdf8');
+
+                    device.addEventListener('gattserverdisconnected', () => {
+                        statusDot.classList.remove('connected');
+                        statusText.innerText = '切断されました';
+                        connectBtn.disabled = false;
+                        connectBtn.innerText = 'デバイスに接続する';
+                        setLog('⚠️ 接続が切れました。ボタンを押して再接続してください。', '#ef4444');
+                    });
+
+                } catch (error) {
+                    console.error(error);
+                    if (error.name === 'NotFoundError') {
+                        setLog('❌ デバイスがキャンセルされたか、見つかりませんでした。', '#ef4444');
+                    } else {
+                        setLog('❌ <b>エラーが発生しました</b><br>' + error.message, '#ef4444');
+                    }
                 }
-            }
-        });
-
-        function handleData(event) {
-            const value = event.target.value;
-            const velocity = value.getFloat32(0, true); // Little-endian
-            const clampedVel = Math.max(0, velocity);
-
-            updateUI(clampedVel);
-            detectRep(clampedVel);
-        }
-
-        function updateUI(val) {
-            const displayVal = val.toFixed(2);
-            velDisplay.innerText = displayVal;
-
-            // Update Chart
-            dataPoints.push(val);
-            labels.push('');
-            if (dataPoints.length > 50) {
-                dataPoints.shift();
-                labels.shift();
-            }
-            chart.update('none');
-        }
-
-        function detectRep(val) {
-            // Simple logic: if velocity > 0.1, it's a movement
-            if (val > 0.15) {
-                isMoving = true;
-                if (val > currentPeak) currentPeak = val;
-            } else if (isMoving && val < 0.05) {
-                // Rep finished
-                addLogRow(currentPeak);
-                currentPeak = 0;
-                isMoving = false;
-            }
-        }
-
-        function addLogRow(peak) {
-            if (peak < 0.2) return; // Ignore micro-jitters
-            const now = new Date();
-            const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
-            const row = `<tr><td>${timeStr}</td><td>${peak.toFixed(2)}</td></tr>`;
-            logBody.insertAdjacentHTML('afterbegin', row);
-
-            logData.push({ time: timeStr, velocity: peak.toFixed(2) });
-
-            // Keep only latest 10 rows in display
-            if (logBody.children.length > 10) logBody.lastElementChild.remove();
-        }
-
-        function exportCSV() {
-            if (logData.length === 0) return alert('No data to export');
-            let csvContent = "data:text/csv;charset=utf-8,Time,Max Velocity (m/s)\n";
-            logData.forEach(r => {
-                csvContent += `${r.time},${r.velocity}\n`;
             });
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "vbt_log.csv");
-            document.body.appendChild(link);
-            link.click();
-        }
+
+            // CSV出力
+            window.exportCSV = function () {
+                if (logData.length === 0) return alert('記録されたデータがありません');
+                let csvContent = "data:text/csv;charset=utf-8,Time,Max Velocity (m/s)\n";
+                logData.forEach(r => { csvContent += `${r.time},${r.velocity}\n`; });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "vbt_log.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+        });
     </script>
 </body>
 
