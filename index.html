@@ -151,6 +151,42 @@
             box-shadow: none;
             padding: 8px 16px;
         }
+
+        .raw-controls {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .record-btn {
+            background-color: #ef4444;
+            color: white;
+            box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);
+        }
+
+        .record-btn.recording {
+            animation: pulse-red 1.5s infinite;
+            background-color: #991b1b;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
     </style>
 </head>
 
@@ -178,8 +214,8 @@
 
         <div class="card" style="text-align: left;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>History</h3>
-                <button class="csv-btn" onclick="exportCSV()">Download CSV</button>
+                <h3>Rep History (Peaks)</h3>
+                <button class="csv-btn" onclick="exportCSV()">History CSV</button>
             </div>
             <table class="log-table">
                 <thead>
@@ -191,6 +227,20 @@
                 <tbody id="log-body">
                 </tbody>
             </table>
+        </div>
+
+        <div class="card" style="background: rgba(15, 23, 42, 0.3); border: 1px dashed var(--text-dim);">
+            <h3>Waveform Recorder (Raw Log)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 15px;">
+                全データポイントを保存します。ドリフト解析や波形分析に使用してください。
+            </p>
+            <div class="raw-controls">
+                <button id="record-btn" class="record-btn" onclick="toggleRawRecording()">波形記録を開始</button>
+                <button id="download-raw-btn" class="csv-btn" onclick="exportRawCSV()" disabled>Raw CSV出力</button>
+            </div>
+            <div id="record-status" style="font-size: 0.8rem; margin-top: 10px; color: var(--accent-color);">
+                記録されたデータ点数: 0
+            </div>
         </div>
 
         <div class="controls">
@@ -206,6 +256,26 @@
             if (logEl) {
                 logEl.innerHTML = msg;
                 logEl.style.color = color || 'var(--text-dim)';
+            }
+        }
+
+        let rawLogBuffer = [];
+        let isRawRecording = false;
+
+        function toggleRawRecording() {
+            const btn = document.getElementById('record-btn');
+            const downloadBtn = document.getElementById('download-raw-btn');
+            if (!isRawRecording) {
+                isRawRecording = true;
+                rawLogBuffer = []; // Reset on start
+                btn.innerText = '記録停止';
+                btn.classList.add('recording');
+                downloadBtn.disabled = true;
+            } else {
+                isRawRecording = false;
+                btn.innerText = '波形記録を開始';
+                btn.classList.remove('recording');
+                downloadBtn.disabled = false;
             }
         }
 
@@ -294,13 +364,21 @@
                     characteristic.addEventListener('characteristicvaluechanged', (event) => {
                         const value = event.target.value;
                         const velocity = value.getFloat32(0, true);
-                        console.log('Received velocity:', velocity);
 
                         // 生の値をそのまま使う（マイナスも許可）
                         const currentVel = Number(velocity.toFixed(3));
 
                         // 数値が妥当かチェック
                         if (isNaN(currentVel)) return;
+
+                        // --- RAW記録モードなら保存 ---
+                        if (isRawRecording) {
+                            const now = new Date();
+                            const ms = String(now.getMilliseconds()).padStart(3, '0');
+                            const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') + '.' + ms;
+                            rawLogBuffer.push({ time: timeStr, velocity: currentVel });
+                            document.getElementById('record-status').innerText = `記録されたデータ点数: ${rawLogBuffer.length}`;
+                        }
 
                         // UI更新
                         velDisplay.innerText = currentVel.toFixed(2);
@@ -313,7 +391,7 @@
                                 dataPoints.shift();
                                 labels.shift();
                             }
-                            chart.update('quiet'); // 'none'より少し安定する場合がある
+                            chart.update('quiet');
                         }
 
                         // レップ検知（ピークは正の値だけで判断する）
@@ -358,7 +436,7 @@
                 }
             });
 
-            // CSV出力
+            // CSV出力 (ピーク履歴)
             window.exportCSV = function () {
                 if (logData.length === 0) return alert('記録されたデータがありません');
                 let csvContent = "data:text/csv;charset=utf-8,Time,Max Velocity (m/s)\n";
@@ -366,7 +444,21 @@
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "vbt_log.csv");
+                link.setAttribute("download", "vbt_history.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            // RAWデータ CSV出力 (波形データ)
+            window.exportRawCSV = function () {
+                if (rawLogBuffer.length === 0) return alert('記録された波形データがありません');
+                let csvContent = "data:text/csv;charset=utf-8,Timestamp,Velocity (m/s)\n";
+                rawLogBuffer.forEach(r => { csvContent += `${r.time},${r.velocity}\n`; });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "vbt_raw_waveform.csv");
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
