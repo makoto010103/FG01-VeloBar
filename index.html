@@ -259,8 +259,8 @@
                         scales: {
                             x: { display: false },
                             y: {
-                                suggestedMin: 0,
-                                suggestedMax: 1.5,
+                                suggestedMin: -10,
+                                suggestedMax: 10,
                                 grid: { color: '#334155' },
                                 ticks: { color: '#94a3b8' }
                             }
@@ -293,14 +293,16 @@
                     characteristic.addEventListener('characteristicvaluechanged', (event) => {
                         const value = event.target.value;
                         const velocity = value.getFloat32(0, true);
-                        const clampedVel = Math.max(0, velocity);
 
-                        // UI更新
-                        velDisplay.innerText = clampedVel.toFixed(2);
+                        // 生の値をそのまま使う（マイナスも許可）
+                        const currentVel = velocity;
+
+                        // UI更新（絶対値で表示するか、そのまま表示するかはお好みですが、一旦そのまま）
+                        velDisplay.innerText = currentVel.toFixed(2);
 
                         // チャート更新
                         if (chart) {
-                            dataPoints.push(clampedVel);
+                            dataPoints.push(currentVel);
                             labels.push('');
                             if (dataPoints.length > 50) {
                                 dataPoints.shift();
@@ -309,11 +311,11 @@
                             chart.update('none');
                         }
 
-                        // レップ検知
-                        if (clampedVel > 0.15) {
+                        // レップ検知（ピークは正の値だけで判断する）
+                        if (currentVel > 0.15) {
                             isMoving = true;
-                            if (clampedVel > currentPeak) currentPeak = clampedVel;
-                        } else if (isMoving && clampedVel < 0.05) {
+                            if (currentVel > currentPeak) currentPeak = currentVel;
+                        } else if (isMoving && currentVel < 0.05) {
                             if (currentPeak > 0.2) {
                                 const now = new Date();
                                 const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
