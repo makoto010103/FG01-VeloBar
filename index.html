@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VBT Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -62,6 +61,17 @@
         .chart-container {
             height: 200px;
             width: 100%;
+            position: relative;
+            background: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #334155;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
         }
 
         .status-dot {
@@ -208,7 +218,7 @@
 
         <div class="card">
             <div class="chart-container">
-                <canvas id="vbtChart"></canvas>
+                <canvas id="vbtCanvas"></canvas>
             </div>
         </div>
 
@@ -250,7 +260,80 @@
     </div>
 
     <script>
-        // ログ表示ユーティリティ（最初から使えるように）
+        // --- 描画エンジン (ライブラリなし) ---
+        class LiveGraph {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.data = [];
+                this.maxPoints = 100;
+                this.yLimit = 10; // ±10m/s
+
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                this.canvas.width = this.canvas.clientWidth * window.devicePixelRatio;
+                this.canvas.height = this.canvas.clientHeight * window.devicePixelRatio;
+            }
+
+            addPoint(val) {
+                this.data.push(val);
+                if (this.data.length > this.maxPoints) {
+                    this.data.shift();
+                }
+                this.draw();
+            }
+
+            draw() {
+                const { width, height } = this.canvas;
+                const ctx = this.ctx;
+
+                ctx.clearRect(0, 0, width, height);
+
+                // グリッド線
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = -10; i <= 10; i += 5) {
+                    let y = height / 2 - (i / this.yLimit) * (height / 2);
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                    // ラベル
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '24px sans-serif';
+                    ctx.fillText(i, 5, y - 5);
+                }
+                ctx.stroke();
+
+                // センターライン（0点）
+                ctx.strokeStyle = '#94a3b8';
+                ctx.beginPath();
+                ctx.moveTo(0, height / 2);
+                ctx.lineTo(width, height / 2);
+                ctx.stroke();
+
+                // データの描画
+                if (this.data.length < 2) return;
+
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+
+                for (let i = 0; i < this.data.length; i++) {
+                    let x = (i / (this.maxPoints - 1)) * width;
+                    let y = height / 2 - (this.data[i] / this.yLimit) * (height / 2);
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+
         function setLog(msg, color = null) {
             const logEl = document.getElementById('connection-log');
             if (logEl) {
@@ -267,7 +350,7 @@
             const downloadBtn = document.getElementById('download-raw-btn');
             if (!isRawRecording) {
                 isRawRecording = true;
-                rawLogBuffer = []; // Reset on start
+                rawLogBuffer = [];
                 btn.innerText = '記録停止';
                 btn.classList.add('recording');
                 downloadBtn.disabled = true;
@@ -279,15 +362,12 @@
             }
         }
 
-        // 初期ロード完了時のメイン処理
         window.addEventListener('load', () => {
             let device, characteristic;
             let logData = [];
-            let labels = [];
-            let dataPoints = [];
             let currentPeak = 0;
             let isMoving = false;
-            let chart;
+            let graph = new LiveGraph('vbtCanvas');
 
             const SERVICE_UUID = 0x180C;
             const CHARACTERISTIC_UUID = 0x2A6E;
@@ -298,114 +378,59 @@
             const statusText = document.getElementById('status-text');
             const logBody = document.getElementById('log-body');
 
-            // 1. ブラウザ対応の即時チェック
             if (!navigator.bluetooth) {
-                setLog('❌ <b>Bluetooth非対応ブラウザです</b><br>iPhoneならApp Storeで <b>Bluefy</b> を入手してください。Mac/Androidなら <b>Chrome</b> か <b>Edge</b> を使ってください。', '#ef4444');
+                setLog('❌ <b>Bluetooth非対応ブラウザです</b><br>iPhoneならApp Storeで <b>Bluefy</b> を入手してください。', '#ef4444');
                 connectBtn.disabled = true;
                 return;
             } else {
-                setLog('✅ 準備完了！<br>「デバイスに接続する」を押して VBT_Device を選んでください');
+                setLog('✅ 準備完了！<br>デバイスに接続してください');
             }
 
-            // 2. Chart.jsの初期化（エラーで止まらないように回避）
-            try {
-                const ctx = document.getElementById('vbtChart').getContext('2d');
-                chart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Velocity',
-                            data: dataPoints,
-                            borderColor: '#38bdf8',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            pointRadius: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: { display: false },
-                            y: {
-                                min: -10,
-                                max: 10,
-                                grid: { color: '#334155' },
-                                ticks: { color: '#94a3b8' }
-                            }
-                        },
-                        plugins: { legend: { display: false } }
-                    }
-                });
-                console.log('Chart initialized successfully');
-            } catch (e) {
-                console.error('Chart initialization failed', e);
-            }
-
-            // 3. 接続処理
             connectBtn.addEventListener('click', async () => {
                 try {
-                    setLog('🔍 <b>デバイスを探しています...</b><br>青い点滅中の VBT_Device を選択してください。');
+                    setLog('🔍 デバイスを探しています...');
                     device = await navigator.bluetooth.requestDevice({
                         filters: [{ name: 'VBT_Device' }],
                         optionalServices: [SERVICE_UUID]
                     });
 
-                    setLog('🤝 通信を開始しています...');
+                    setLog('🤝 接続しています...');
                     const server = await device.gatt.connect();
-
-                    setLog('⚙️ サービスを取得中です...');
                     const service = await server.getPrimaryService(SERVICE_UUID);
                     characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
-                    setLog('📥 受信を開始しました！');
                     await characteristic.startNotifications();
-                    characteristic.addEventListener('characteristicvaluechanged', (event) => {
-                        const value = event.target.value;
-                        const velocity = value.getFloat32(0, true);
+                    setLog('📥 受信を開始しました！', '#38bdf8');
 
-                        // 生の値をそのまま使う（マイナスも許可）
+                    characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                        const raw = event.target.value;
+                        const velocity = raw.getFloat32(0, true);
                         const currentVel = Number(velocity.toFixed(3));
 
-                        // 数値が妥当かチェック
                         if (isNaN(currentVel)) return;
 
-                        // --- RAW記録モードなら保存 ---
+                        // グラフ更新
+                        graph.addPoint(currentVel);
+                        velDisplay.innerText = Math.abs(currentVel).toFixed(2);
+
+                        // RAW記録
                         if (isRawRecording) {
                             const now = new Date();
-                            const ms = String(now.getMilliseconds()).padStart(3, '0');
-                            const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') + '.' + ms;
+                            const timeStr = `${now.getSeconds()}.${String(now.getMilliseconds()).padStart(3, '0')}`;
                             rawLogBuffer.push({ time: timeStr, velocity: currentVel });
-                            document.getElementById('record-status').innerText = `記録されたデータ点数: ${rawLogBuffer.length}`;
+                            document.getElementById('record-status').innerText = `記録中: ${rawLogBuffer.length}点`;
                         }
 
-                        // UI更新
-                        velDisplay.innerText = currentVel.toFixed(2);
-
-                        // チャート更新
-                        if (chart) {
-                            dataPoints.push(currentVel);
-                            labels.push('');
-                            if (dataPoints.length > 50) {
-                                dataPoints.shift();
-                                labels.shift();
-                            }
-                            chart.update('quiet');
-                        }
-
-                        // レップ検知（ピークは正の値だけで判断する）
+                        // レップ検知
                         if (currentVel > 0.15) {
                             isMoving = true;
                             if (currentVel > currentPeak) currentPeak = currentVel;
                         } else if (isMoving && currentVel < 0.05) {
                             if (currentPeak > 0.2) {
-                                const now = new Date();
-                                const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
-                                const row = `<tr><td>${timeStr}</td><td>${currentPeak.toFixed(2)}</td></tr>`;
-                                logBody.insertAdjacentHTML('afterbegin', row);
+                                const d = new Date();
+                                const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+                                logBody.insertAdjacentHTML('afterbegin', `<tr><td>${timeStr}</td><td>${currentPeak.toFixed(2)}</td></tr>`);
                                 logData.push({ time: timeStr, velocity: currentPeak.toFixed(2) });
-                                if (logBody.children.length > 10) logBody.lastElementChild.remove();
                             }
                             currentPeak = 0;
                             isMoving = false;
@@ -416,53 +441,39 @@
                     statusText.innerText = '接続完了';
                     connectBtn.innerText = '接続済み ✅';
                     connectBtn.disabled = true;
-                    setLog('🎉 <b>計測準備が整いました！</b><br>デバイスを動かすと速度が表示されます。', '#38bdf8');
 
                     device.addEventListener('gattserverdisconnected', () => {
                         statusDot.classList.remove('connected');
                         statusText.innerText = '切断されました';
                         connectBtn.disabled = false;
                         connectBtn.innerText = 'デバイスに接続する';
-                        setLog('⚠️ 接続が切れました。ボタンを押して再接続してください。', '#ef4444');
                     });
 
                 } catch (error) {
-                    console.error(error);
-                    if (error.name === 'NotFoundError') {
-                        setLog('❌ デバイスがキャンセルされたか、見つかりませんでした。', '#ef4444');
-                    } else {
-                        setLog('❌ <b>エラーが発生しました</b><br>' + error.message, '#ef4444');
-                    }
+                    setLog('❌ エラー: ' + error.message, '#ef4444');
                 }
             });
 
-            // CSV出力 (ピーク履歴)
-            window.exportCSV = function () {
-                if (logData.length === 0) return alert('記録されたデータがありません');
-                let csvContent = "data:text/csv;charset=utf-8,Time,Max Velocity (m/s)\n";
-                logData.forEach(r => { csvContent += `${r.time},${r.velocity}\n`; });
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "vbt_history.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            window.exportCSV = () => {
+                if (logData.length === 0) return alert('なし');
+                let csv = "Time,Max Velocity\n" + logData.map(r => `${r.time},${r.velocity}`).join("\n");
+                downloadFile(csv, "vbt_history.csv");
             };
 
-            // RAWデータ CSV出力 (波形データ)
-            window.exportRawCSV = function () {
-                if (rawLogBuffer.length === 0) return alert('記録された波形データがありません');
-                let csvContent = "data:text/csv;charset=utf-8,Timestamp,Velocity (m/s)\n";
-                rawLogBuffer.forEach(r => { csvContent += `${r.time},${r.velocity}\n`; });
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "vbt_raw_waveform.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            window.exportRawCSV = () => {
+                if (rawLogBuffer.length === 0) return alert('なし');
+                let csv = "Time,Velocity\n" + rawLogBuffer.map(r => `${r.time},${r.velocity}`).join("\n");
+                downloadFile(csv, "vbt_raw.csv");
             };
+
+            function downloadFile(content, filename) {
+                const blob = new Blob([content], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+            }
         });
     </script>
 </body>

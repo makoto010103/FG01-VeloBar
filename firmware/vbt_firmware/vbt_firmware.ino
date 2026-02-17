@@ -61,49 +61,53 @@ void loop() {
   float dt = (now - lastUpdate) / 1000000.0;
   lastUpdate = now;
 
-  // dtが異常に長い場合（接続処理などで止まっていた場合）は計算をスキップ
-  if (dt > 0.1) {
-    dt = 0;
-  }
+  if (dt > 0.1) dt = 0;
 
   if (IMU.getAGT() > 0) {
     float acc_z = IMU.accZ();
     float linear_accel = (acc_z - grav_offset) * 9.80665; 
 
-    // ノイズ除去（0.15m/s^2未満は無視）
-    if (abs(linear_accel) < 0.15) linear_accel = 0;
+    // ノイズ除去の閾値
+    if (abs(linear_accel) < 0.25) linear_accel = 0;
     
     velocity += linear_accel * dt;
 
-    // --- 安全装置：速度リミッター（人間が出せる速度ではない場合カット） ---
-    if (velocity > 5.0) velocity = 5.0;
-    if (velocity < -5.0) velocity = -5.0;
+    // --- ドリフト防止ロジック ---
+    static int stillCount = 0;
+    if (linear_accel == 0) {
+      stillCount++;
+      velocity *= 0.92; // 加速度が0なら速度を減衰（ブレーキ）
+    } else {
+      stillCount = 0;
+    }
 
-    // ドリフト防止：加速度が0なら、速度を徐々に0に戻す
-    if (linear_accel == 0) velocity *= 0.95;
-    
-    // 完全に停止させる閾値
-    if (abs(velocity) < 0.02) velocity = 0;
+    // 10カウント（約50ms）静止が続いたら速度を完全に0にする（ゼロ・アップデート）
+    if (stillCount > 10) {
+      velocity = 0;
+    }
+
+    // --- 安全装置：速度リミッター（人間が出せる現実的な範囲） ---
+    if (velocity > 4.0) velocity = 4.0;
+    if (velocity < -4.0) velocity = -4.0;
 
     static int counter = 0;
     counter++;
     
-    // --- 1. Bluetooth送信（100msに1回 = 10Hz） ---
-    // ここが速すぎるとWeb側がパンクしてグラフが描画されなくなる
+    // --- 1. Bluetooth送信 (10Hz) ---
     if (counter % 20 == 0) {
       if (Bluefruit.connected()) {
         vbtCharacteristic.notify(&velocity, 4);
       }
     }
 
-    // --- 2. シリアル表示（デバッグ用） ---
+    // --- 2. シリアル表示 ---
     if (counter % 50 == 0) {
       Serial.print("RawZ:"); Serial.print(acc_z, 2);
+      Serial.print(" | LinAcc:"); Serial.print(linear_accel, 2);
       Serial.print(" | Vel:"); Serial.println(velocity, 3);
       counter = 0;
     }
   }
   delay(5); 
 }
-
 
