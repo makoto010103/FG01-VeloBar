@@ -259,8 +259,8 @@
                         scales: {
                             x: { display: false },
                             y: {
-                                suggestedMin: -10,
-                                suggestedMax: 10,
+                                min: -10,
+                                max: 10,
                                 grid: { color: '#334155' },
                                 ticks: { color: '#94a3b8' }
                             }
@@ -268,8 +268,9 @@
                         plugins: { legend: { display: false } }
                     }
                 });
+                console.log('Chart initialized successfully');
             } catch (e) {
-                console.warn('Chart initialization failed', e);
+                console.error('Chart initialization failed', e);
             }
 
             // 3. 接続処理
@@ -293,11 +294,15 @@
                     characteristic.addEventListener('characteristicvaluechanged', (event) => {
                         const value = event.target.value;
                         const velocity = value.getFloat32(0, true);
+                        console.log('Received velocity:', velocity);
 
                         // 生の値をそのまま使う（マイナスも許可）
-                        const currentVel = velocity;
+                        const currentVel = Number(velocity.toFixed(3));
 
-                        // UI更新（絶対値で表示するか、そのまま表示するかはお好みですが、一旦そのまま）
+                        // 数値が妥当かチェック
+                        if (isNaN(currentVel)) return;
+
+                        // UI更新
                         velDisplay.innerText = currentVel.toFixed(2);
 
                         // チャート更新
@@ -308,7 +313,7 @@
                                 dataPoints.shift();
                                 labels.shift();
                             }
-                            chart.update('none');
+                            chart.update('quiet'); // 'none'より少し安定する場合がある
                         }
 
                         // レップ検知（ピークは正の値だけで判断する）
