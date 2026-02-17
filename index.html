@@ -114,9 +114,19 @@
 
         .controls {
             display: flex;
+            flex-direction: column;
             gap: 10px;
-            justify-content: center;
+            align-items: center;
             margin-top: 20px;
+        }
+
+        .connection-log {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 10px;
+            max-width: 100%;
+            text-align: center;
+            line-height: 1.4;
         }
 
         .csv-btn {
@@ -133,7 +143,7 @@
             <h1>VBT Dashboard</h1>
             <div>
                 <span id="status-dot" class="status-dot"></span>
-                <span id="status-text">Disconnected</span>
+                <span id="status-text">接続待ち</span>
             </div>
         </div>
 
@@ -168,7 +178,8 @@
         </div>
 
         <div class="controls">
-            <button id="connect-btn">Connect Device</button>
+            <button id="connect-btn">デバイスに接続する</button>
+            <div id="connection-log" class="connection-log">ブラウザの接続ボタンを押してください</div>
         </div>
     </div>
 
@@ -219,36 +230,62 @@
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         const logBody = document.getElementById('log-body');
+        const connectionLog = document.getElementById('connection-log');
+
+        function setLog(msg, color = null) {
+            connectionLog.innerText = msg;
+            if (color) connectionLog.style.color = color;
+            else connectionLog.style.color = 'var(--text-dim)';
+        }
 
         connectBtn.addEventListener('click', async () => {
+            // ブラウザ対応チェック
+            if (!navigator.bluetooth) {
+                setLog('❌ お使いのブラウザはBluetoothに対応していません。iPhoneならBluefy、Mac/AndroidならChromeを使ってください。', '#ef4444');
+                return;
+            }
+
             try {
+                setLog('🔍 デバイスを探しています... (VBT_Deviceを選択してください)');
                 device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'VBT_Device' }],
                     optionalServices: [SERVICE_UUID]
                 });
 
+                setLog('🤝 デバイスと通信を開始します...');
                 const server = await device.gatt.connect();
+
+                setLog('⚙️ サービスを取得中です...');
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
+                setLog('📥 データの受信を開始します...');
                 await characteristic.startNotifications();
                 characteristic.addEventListener('characteristicvaluechanged', handleData);
 
                 statusDot.classList.add('connected');
-                statusText.innerText = 'Connected';
-                connectBtn.innerText = 'Connected ✅';
+                statusText.innerText = '接続完了';
+                connectBtn.innerText = '接続済み ✅';
                 connectBtn.disabled = true;
+                setLog('✅ 準備完了！デバイスを動かして速度を測りましょう。');
 
                 device.addEventListener('gattserverdisconnected', () => {
                     statusDot.classList.remove('connected');
-                    statusText.innerText = 'Disconnected';
+                    statusText.innerText = '切断されました';
                     connectBtn.disabled = false;
-                    connectBtn.innerText = 'Connect Device';
+                    connectBtn.innerText = 'デバイスに接続する';
+                    setLog('⚠️ デバイスとの接続が切れました。ボタンを押して再接続してください。', '#ef4444');
                 });
 
             } catch (error) {
                 console.error(error);
-                alert('Bluetooth connection failed: ' + error);
+                if (error.name === 'NotFoundError') {
+                    setLog('❌ デバイスが選択されなかったか、見つかりませんでした。', '#ef4444');
+                } else if (error.name === 'SecurityError') {
+                    setLog('❌ セキュリティ制限によりブロックされました（HTTPSで開いてください）。', '#ef4444');
+                } else {
+                    setLog('❌ エラー: ' + error.message, '#ef4444');
+                }
             }
         });
 
