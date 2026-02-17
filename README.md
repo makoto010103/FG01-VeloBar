@@ -1,4 +1,4 @@
-# VBT (Velocity Based Training) 自作プロジェクト
+# FG01-VeloBar (Velocity Based Training Device)
 
 Seeed XIAO nRF52840 と ICM-42688 センサーを使用した、挙上速度をリアルタイムで計測・記録するVBTデバイスのプロジェクトです。
 
