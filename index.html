@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VBT Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-color: #38bdf8;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            text-align: center;
+        }
+
+        .velocity-display {
+            font-size: 8rem;
+            font-weight: 800;
+            color: var(--accent-color);
+            margin: 10px 0;
+            line-height: 1;
+        }
+
+        .unit {
+            font-size: 1.5rem;
+            color: var(--text-dim);
+        }
+
+        .chart-container {
+            height: 200px;
+            width: 100%;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            margin-right: 8px;
+        }
+
+        .status-dot.connected {
+            background-color: #22c55e;
+            box-shadow: 0 0 10px #22c55e;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+        .log-table th,
+        .log-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .log-table th {
+            color: var(--text-dim);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .csv-btn {
+            background-color: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>VBT Dashboard</h1>
+            <div>
+                <span id="status-dot" class="status-dot"></span>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="unit">Current Velocity</div>
+            <div id="velocity" class="velocity-display">0.00</div>
+            <div class="unit">m/s</div>
+        </div>
+
+        <div class="card">
+            <div class="chart-container">
+                <canvas id="vbtChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>History</h3>
+                <button class="csv-btn" onclick="exportCSV()">Download CSV</button>
+            </div>
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Max Velocity (m/s)</th>
+                    </tr>
+                </thead>
+                <tbody id="log-body">
+                    <!-- Rows will be added here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="controls">
+            <button id="connect-btn">Connect Device</button>
+        </div>
+    </div>
+
+    <script>
+        let device, characteristic;
+        let logData = [];
+        let labels = [];
+        let dataPoints = [];
+        let currentPeak = 0;
+        let isMoving = false;
+
+        const SERVICE_UUID = 0x180C;
+        const CHARACTERISTIC_UUID = 0x2A6E;
+
+        // Chart.js Setup
+        const ctx = document.getElementById('vbtChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Velocity',
+                    data: dataPoints,
+                    borderColor: '#38bdf8',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false },
+                    y: {
+                        suggestedMin: 0,
+                        suggestedMax: 1.5,
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const connectBtn = document.getElementById('connect-btn');
+        const velDisplay = document.getElementById('velocity');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const logBody = document.getElementById('log-body');
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'VBT_Device' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', handleData);
+
+                statusDot.classList.add('connected');
+                statusText.innerText = 'Connected';
+                connectBtn.innerText = 'Connected ✅';
+                connectBtn.disabled = true;
+
+                device.addEventListener('gattserverdisconnected', () => {
+                    statusDot.classList.remove('connected');
+                    statusText.innerText = 'Disconnected';
+                    connectBtn.disabled = false;
+                    connectBtn.innerText = 'Connect Device';
+                });
+
+            } catch (error) {
+                console.error(error);
+                alert('Bluetooth connection failed: ' + error);
+            }
+        });
+
+        function handleData(event) {
+            const value = event.target.value;
+            const velocity = value.getFloat32(0, true); // Little-endian
+            const clampedVel = Math.max(0, velocity);
+
+            updateUI(clampedVel);
+            detectRep(clampedVel);
+        }
+
+        function updateUI(val) {
+            const displayVal = val.toFixed(2);
+            velDisplay.innerText = displayVal;
+
+            // Update Chart
+            dataPoints.push(val);
+            labels.push('');
+            if (dataPoints.length > 50) {
+                dataPoints.shift();
+                labels.shift();
+            }
+            chart.update('none');
+        }
+
+        function detectRep(val) {
+            // Simple logic: if velocity > 0.1, it's a movement
+            if (val > 0.15) {
+                isMoving = true;
+                if (val > currentPeak) currentPeak = val;
+            } else if (isMoving && val < 0.05) {
+                // Rep finished
+                addLogRow(currentPeak);
+                currentPeak = 0;
+                isMoving = false;
+            }
+        }
+
+        function addLogRow(peak) {
+            if (peak < 0.2) return; // Ignore micro-jitters
+            const now = new Date();
+            const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+            const row = `<tr><td>${timeStr}</td><td>${peak.toFixed(2)}</td></tr>`;
+            logBody.insertAdjacentHTML('afterbegin', row);
+
+            logData.push({ time: timeStr, velocity: peak.toFixed(2) });
+
+            // Keep only latest 10 rows in display
+            if (logBody.children.length > 10) logBody.lastElementChild.remove();
+        }
+
+        function exportCSV() {
+            if (logData.length === 0) return alert('No data to export');
+            let csvContent = "data:text/csv;charset=utf-8,Time,Max Velocity (m/s)\n";
+            logData.forEach(r => {
+                csvContent += `${r.time},${r.velocity}\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "vbt_log.csv");
+            document.body.appendChild(link);
+            link.click();
+        }
+    </script>
+</body>
+
+</html>
