@@ -454,16 +454,29 @@
                 }
             });
 
-            window.exportCSV = () => {
-                if (logData.length === 0) return alert('なし');
-                let csv = "Time,Max Velocity\n" + logData.map(r => `${r.time},${r.velocity}`).join("\n");
-                downloadFile(csv, "vbt_history.csv");
+            window.exportCSV = function () {
+                // RAW記録（全データ）があればそれを優先、なければピーク履歴を出力
+                if (rawLogBuffer.length > 0) {
+                    let csvContent = "Timestamp,Velocity(m/s)\n";
+                    rawLogBuffer.forEach(r => {
+                        csvContent += `${r.time},${r.velocity}\n`;
+                    });
+                    downloadFile(csvContent, "vbt_full_log.csv");
+                } else if (logData.length > 0) {
+                    let csvContent = "Time,Peak_Velocity(m/s)\n";
+                    logData.forEach(r => {
+                        csvContent += `${r.time},${r.velocity}\n`;
+                    });
+                    downloadFile(csvContent, "vbt_history.csv");
+                } else {
+                    alert('記録されたデータがありません。「波形記録を開始」を押してから動かしてください。');
+                }
             };
 
             window.exportRawCSV = () => {
-                if (rawLogBuffer.length === 0) return alert('なし');
-                let csv = "Time,Velocity\n" + rawLogBuffer.map(r => `${r.time},${r.velocity}`).join("\n");
-                downloadFile(csv, "vbt_raw.csv");
+                if (rawLogBuffer.length === 0) return alert('波形データがありません');
+                let csv = "Timestamp,Velocity(m/s)\n" + rawLogBuffer.map(r => `${r.time},${r.velocity}`).join("\n");
+                downloadFile(csv, "vbt_raw_waveform.csv");
             };
 
             function downloadFile(content, filename) {

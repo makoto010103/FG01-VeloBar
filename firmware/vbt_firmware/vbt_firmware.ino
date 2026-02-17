@@ -2,42 +2,32 @@
 #include <Wire.h>
 #include "ICM42688.h"
 
-const int PIN_VDDIO = D1;
-const int PIN_AD0 = D2;
-const int PIN_CS = D3;
-
 ICM42688 IMU(Wire, 0x68);
 BLEService        vbtService = BLEService(0x180C);
 BLECharacteristic vbtCharacteristic = BLECharacteristic(0x2A6E);
 
 float velocity = 0.0;
 unsigned long lastUpdate = 0;
-float grav_offset = 0.0;
+float grav_offset = 1.0; // 初期値
+
+const unsigned long BLE_INTERVAL_MS = 100; 
+unsigned long lastBleTime = 0;
 
 void setup() {
   Serial.begin(115200);
-  
-  pinMode(PIN_VDDIO, OUTPUT); digitalWrite(PIN_VDDIO, HIGH);
-  pinMode(PIN_AD0, OUTPUT);    digitalWrite(PIN_AD0, LOW);
-  pinMode(PIN_CS, OUTPUT);     digitalWrite(PIN_CS, HIGH);
+  pinMode(D1, OUTPUT); digitalWrite(D1, HIGH); // VDDIO
+  pinMode(D2, OUTPUT); digitalWrite(D2, LOW);  // AD0
+  pinMode(D3, OUTPUT); digitalWrite(D3, HIGH); // CS
   delay(500);
 
-  Serial.println("--- VBT Device Starting ---");
-
   if (IMU.begin() < 0) {
-    Serial.println("❌ Sensor Error: Check Wiring!");
+    Serial.println("❌ Sensor Error");
   } else {
-    Serial.println("✅ Sensor Found!");
     IMU.setAccelFS(ICM42688::gpm16);
-    
-    Serial.println("CALIBRATING... STAY STILL");
-    float sum_z = 0;
-    for(int i=0; i<100; i++) {
-        if (IMU.getAGT() > 0) sum_z += IMU.accZ();
-        delay(10);
-    }
-    grav_offset = sum_z / 100.0;
-    Serial.print("Zero Point fixed at: "); Serial.println(grav_offset, 3);
+    // 初回の簡易的なゼロ点合わせ
+    float sum = 0;
+    for(int i=0; i<50; i++) { sum += IMU.accZ(); delay(5); }
+    grav_offset = sum / 50.0;
   }
 
   Bluefruit.begin();
@@ -47,67 +37,58 @@ void setup() {
   vbtCharacteristic.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   vbtCharacteristic.setFixedLen(4);
   vbtCharacteristic.begin();
-
-  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
   Bluefruit.Advertising.addService(vbtService);
   Bluefruit.Advertising.start(0);
 
-  Serial.println("🚀 System Ready! Start Lifting!");
   lastUpdate = micros();
 }
 
 void loop() {
-  unsigned long now = micros();
-  float dt = (now - lastUpdate) / 1000000.0;
-  lastUpdate = now;
-
-  if (dt > 0.1) dt = 0;
+  unsigned long now_micros = micros();
+  unsigned long now_millis = millis();
+  float dt = (now_micros - lastUpdate) / 1000000.0;
+  lastUpdate = now_micros;
+  if (dt > 0.1 || dt <= 0) dt = 0;
 
   if (IMU.getAGT() > 0) {
     float acc_z = IMU.accZ();
-    float linear_accel = (acc_z - grav_offset) * 9.80665; 
+    
+    // --- アダプティブ重力補正 ---
+    // ほとんど動いていないときは、今の値を重力オフセットとしてジワジワ取り込む（傾き対策）
+    static float lpf_acc = 1.0;
+    lpf_acc = lpf_acc * 0.98 + acc_z * 0.02; 
+    
+    float linear_accel = (acc_z - grav_offset) * 9.80665;
 
-    // ノイズ除去の閾値
-    if (abs(linear_accel) < 0.25) linear_accel = 0;
+    // ノイズカット
+    if (abs(linear_accel) < 0.3) {
+        linear_accel = 0;
+        // 静止中にゼロ点を微調整
+        grav_offset = grav_offset * 0.9 + acc_z * 0.1;
+    }
     
     velocity += linear_accel * dt;
 
-    // --- ドリフト防止ロジック ---
-    static int stillCount = 0;
+    // 強力なドリフト防止
     if (linear_accel == 0) {
-      stillCount++;
-      velocity *= 0.92; // 加速度が0なら速度を減衰（ブレーキ）
-    } else {
-      stillCount = 0;
+      velocity *= 0.85; // 急ブレーキ
+      if (abs(velocity) < 0.02) velocity = 0;
     }
 
-    // 10カウント（約50ms）静止が続いたら速度を完全に0にする（ゼロ・アップデート）
-    if (stillCount > 10) {
-      velocity = 0;
-    }
-
-    // --- 安全装置：速度リミッター（人間が出せる現実的な範囲） ---
+    // リミッター
     if (velocity > 4.0) velocity = 4.0;
     if (velocity < -4.0) velocity = -4.0;
 
-    static int counter = 0;
-    counter++;
-    
-    // --- 1. Bluetooth送信 (10Hz) ---
-    if (counter % 20 == 0) {
+    // Bluetooth送信
+    if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
+      lastBleTime = now_millis;
       if (Bluefruit.connected()) {
         vbtCharacteristic.notify(&velocity, 4);
       }
-    }
-
-    // --- 2. シリアル表示 ---
-    if (counter % 50 == 0) {
-      Serial.print("RawZ:"); Serial.print(acc_z, 2);
-      Serial.print(" | LinAcc:"); Serial.print(linear_accel, 2);
-      Serial.print(" | Vel:"); Serial.println(velocity, 3);
-      counter = 0;
+      // シリアルにも簡潔に出す
+      Serial.print("G:"); Serial.print(grav_offset, 3);
+      Serial.print(" | V:"); Serial.println(velocity, 2);
     }
   }
-  delay(5); 
+  delay(5);
 }
-
