@@ -1,15 +1,16 @@
 #include <bluefruit.h>
 #include <Wire.h>
 #include "ICM42688.h"
+#include "MadgwickAHRS.h" // 6軸センサーフュージョン
 
 // センサーと通信のオブジェクト
 ICM42688 IMU(Wire, 0x68);
 BLEService        vbtService = BLEService(0x180C);
 BLECharacteristic vbtCharacteristic = BLECharacteristic(0x2A6E);
+Madgwick          filter;
 
 float velocity = 0.0;
 unsigned long lastUpdate = 0;
-float grav_mag = 1.0; 
 
 const unsigned long BLE_INTERVAL_MS = 100;    
 unsigned long lastBleTime = 0;
@@ -43,12 +44,12 @@ void setup() {
   pinMode(D3, OUTPUT); digitalWrite(D3, HIGH);
   delay(500);
 
-  Serial.println("--- VBT Device Immortal Ver ---");
+  Serial.println("--- VBT Device 6DOF Fusion Ver ---");
 
   // --- Watchdog Timer (WDT) 設定 ---
   // 5秒間プログラムが止まったら自動的にリセットをかけます
   NRF_WDT->CONFIG         = 0x01;     // Stop WDT when sleeping
-  NRF_WDT->CRV            = 5 * 32768; // 5 seconds (Clock is 32.768kHz)
+  NRF_WDT->CRV            = 5 * 32768; // 5 seconds
   NRF_WDT->RREN           = 0x01;     // Enable reload register 0
   NRF_WDT->TASKS_START    = 1;        // Start WDT
 
@@ -56,21 +57,18 @@ void setup() {
     Serial.println("❌ Sensor Error");
   } else {
     IMU.setAccelFS(ICM42688::gpm16);
-    float sum = 0;
-    for(int i=0; i<40; i++) {
-        if(IMU.getAGT() > 0) {
-            float ax=IMU.accX(), ay=IMU.accY(), az=IMU.accZ();
-            sum += sqrt(ax*ax + ay*ay + az*az);
-        }
-        NRF_WDT->RR[0] = WDT_RR_RR_Reload; // WDTをリフレッシュ
-        delay(10);
-    }
-    grav_mag = sum / 40.0;
-    Serial.print("Initial Gravity: "); Serial.println(grav_mag, 3);
+    IMU.setGyroFS(ICM42688::dps2000); // ジャイロスコープのフルスケール設定
+    
+    // 静止状態で少し待機し、IMUを安定させる
+    delay(100); 
+    NRF_WDT->RR[0] = WDT_RR_RR_Reload;
+    
+    // フィルタ初期化 (サンプリング周波数 ~100Hz)
+    filter.begin(100.0f);
   }
 
-  // Bluetooth設定 (configはbeginの前に呼ぶ必要がある)
-  Bluefruit.configPrphBandwidth(BANDWIDTH_HIGH); // 極端なMAXより安定を取ってHIGHに設定
+  // Bluetooth設定
+  Bluefruit.configPrphBandwidth(BANDWIDTH_HIGH);
   Bluefruit.begin();
   Bluefruit.setTxPower(4); 
   Bluefruit.setName("VBT_Device");
@@ -95,10 +93,10 @@ void setup() {
 }
 
 void loop() {
-  // --- 1. WDTのリフレッシュ (生きてるアピール) ---
+  // --- 1. WDTのリフレッシュ ---
   NRF_WDT->RR[0] = WDT_RR_RR_Reload;
 
-  // --- 2. ステータスLEDの点滅 (Hearbeat) ---
+  // --- 2. ステータスLEDの点滅 ---
   static unsigned long lastBlink = 0;
   if (millis() - lastBlink > 500) {
       lastBlink = millis();
@@ -107,64 +105,98 @@ void loop() {
 
   unsigned long now_micros = micros();
   unsigned long now_millis = millis();
-  float dt = (now_micros - lastUpdate) / 1000000.0;
+  float dt = (now_micros - lastUpdate) / 1000000.0; // 秒
   lastUpdate = now_micros;
-  if (dt > 0.1 || dt <= 0) dt = 0;
+  if (dt > 0.1 || dt <= 0) dt = 0.01; // 安全策
 
   if (IMU.getAGT() > 0) {
-    float ax=IMU.accX(), ay=IMU.accY(), az=IMU.accZ();
-    float current_mag = sqrt(ax*ax + ay*ay + az*az);
-    float linear_accel = (current_mag - grav_mag) * 9.80665;
+    float ax_g = IMU.accX();
+    float ay_g = IMU.accY();
+    float az_g = IMU.accZ();
+    float gx_dps = IMU.gyrX();
+    float gy_dps = IMU.gyrY();
+    float gz_dps = IMU.gyrZ();
 
-    static float last_mag = 1.0;
-    float diff = abs(current_mag - last_mag);
-    last_mag = current_mag;
+    // 1. Madgwickフィルター更新 (姿勢推定)
+    filter.updateIMU(gx_dps, gy_dps, gz_dps, ax_g, ay_g, az_g, dt);
 
-    static int stillCount = 0;
-    if (diff < 0.015) stillCount++; // より厳密な静止判定
-    else stillCount = 0;
+    // 2. 地球座標系の鉛直加速度を計算
+    // クォータニオン(q0, q1, q2, q3)を使ってセンサー座標系の加速度を地球座標系(North, East, Down or similar)に回転
+    // Madgwickのqは Earth -> Sensor なので、回転行列を作るか、重力ベクトルを引く
+    
+    // 重力方向の推定 (センサー座標系での重力方向)
+    float q0 = filter.q0, q1 = filter.q1, q2 = filter.q2, q3 = filter.q3;
+    float gravity_x = 2.0f * (q1 * q3 - q0 * q2);
+    float gravity_y = 2.0f * (q0 * q1 + q2 * q3);
+    float gravity_z = q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3;
 
-    // 静止判定のしきい値を微調整 (80 -> 160: 約0.8秒の完全静止で確定)
-    if (stillCount > 160) {
-        // 重力値の更新をより穏やかに (0.1 -> 0.02)
-        grav_mag = grav_mag * 0.98 + current_mag * 0.02;
-        velocity = 0;
+    // リニア加速度 (センサー座標系) = 測定加速度 - 重力成分
+    float lin_acc_x = ax_g - gravity_x;
+    float lin_acc_y = ay_g - gravity_y;
+    float lin_acc_z = az_g - gravity_z;
+
+    // 鉛直方向の加速度 (Earth-Z) だけ取り出したい
+    // Earth-Z accel = dot product of Linear Accel and Gravity Vector (normalized) in sensor frame
+    // 重力ベクトル(gravity_x,y,z)は長さ1なので、これとの内積を取れば鉛直成分
+    // ただしMadgwickの座標系定義に注意が必要。通常、重力は下向き(Z or -Z)。
+    // ここでは「重力方向」への射影成分を計算します。
+    // gravity_x, y, z は「下向き」の単位ベクトル(センサー座標系)
+    float vertical_accel_g = (lin_acc_x * gravity_x) + (lin_acc_y * gravity_y) + (lin_acc_z * gravity_z);
+    
+    // G -> m/s^2
+    float vertical_accel_mps2 = vertical_accel_g * 9.80665;
+
+    // --- 3. 静止判定 (Zero Velocity Update) ---
+    // ジャイロの動きと加速度の変動の両方を見る
+    static float gyro_mag_sum = 0;
+    static int sample_count = 0;
+    float gyro_mag = sqrt(gx_dps*gx_dps + gy_dps*gy_dps + gz_dps*gz_dps);
+    
+    // 静止判定ロジック
+    // ジャイロが静かで、かつ加速度の変動が少ない場合
+    bool is_static = false;
+    if (gyro_mag < 5.0) { // 5 dps未満
+        static int static_frames = 0;
+        static_frames++;
+        if (static_frames > 20) { // 約0.2秒継続
+            is_static = true;
+        }
+    } else {
+        static int static_frames = 0; // リセット
     }
 
-    // ノイズしきい値を引き下げ (0.05 -> 0.03)
-    if (abs(linear_accel) < 0.03) linear_accel = 0;
-    
-    // 生の速度計算
-    float raw_velocity = (velocity + linear_accel * dt) * 0.999;
-    
-    // --- 移動平均フィルタ (5サンプル) ---
-    static float velBuffer[5] = {0};
-    static int velIdx = 0;
-    velBuffer[velIdx] = raw_velocity;
-    velIdx = (velIdx + 1) % 5;
-    
-    float smooth_velocity = 0;
-    for(int i=0; i<5; i++) smooth_velocity += velBuffer[i];
-    smooth_velocity /= 5.0;
-    
-    velocity = raw_velocity; // 次回の積算用に生値を保持
+    // --- 4. 速度積分 ---
+    if (is_static) {
+        // Soft ZUPT: 速やかに0に減衰させる
+        // 加速度そのものも0とみなす
+        vertical_accel_mps2 = 0;
+        velocity *= 0.8; // 強い減衰
+        if (abs(velocity) < 0.01) velocity = 0;
+    } else {
+        // デッドゾーン (ノイズ除去)
+        if (abs(vertical_accel_mps2) < 0.05) vertical_accel_mps2 = 0;
 
-    if (velocity > 4.0) velocity = 4.0;
-    if (velocity < -4.0) velocity = -4.0;
+        velocity += vertical_accel_mps2 * dt;
+        velocity *= 0.999; // わずかな減衰でドリフト発散防止
+    }
 
+    // --- 安全リミット ---
+    if (velocity > 5.0) velocity = 5.0;
+    if (velocity < -5.0) velocity = -5.0;
+
+    // --- 5. BLE送信 & ログ ---
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
       lastBleTime = now_millis;
       if (Bluefruit.connected()) {
-        // BLEには平滑化した値を送る
-        vbtCharacteristic.notify(&smooth_velocity, 4);
+        vbtCharacteristic.notify(&velocity, 4);
       }
       
-      // シリアル出力 (1秒に1回)
       static unsigned long lastSerialTime = 0;
       if (now_millis - lastSerialTime >= 1000) {
           lastSerialTime = now_millis;
-          Serial.print("V:"); Serial.print(velocity, 2);
-          Serial.print(" G:"); Serial.println(grav_mag, 3);
+          Serial.print("V:"); Serial.print(velocity, 3);
+          Serial.print(" AccZ:"); Serial.print(vertical_accel_mps2, 2);
+          Serial.print(" Gyro:"); Serial.println(gyro_mag, 1);
       }
     }
   }
