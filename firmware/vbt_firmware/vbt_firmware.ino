@@ -124,16 +124,30 @@ void loop() {
     if (diff < 0.015) stillCount++; // より厳密な静止判定
     else stillCount = 0;
 
-    // 静止判定のしきい値を微調整 (150 -> 80: 約0.4秒の完全静止で確定)
-    if (stillCount > 80) {
+    // 静止判定のしきい値を微調整 (80 -> 160: 約0.8秒の完全静止で確定)
+    if (stillCount > 160) {
         // 重力値の更新をより穏やかに (0.1 -> 0.02)
         grav_mag = grav_mag * 0.98 + current_mag * 0.02;
         velocity = 0;
     }
 
-    // ノイズしきい値を引き下げ (0.15 -> 0.05)
-    if (abs(linear_accel) < 0.05) linear_accel = 0;
-    velocity = (velocity + linear_accel * dt) * 0.998;
+    // ノイズしきい値を引き下げ (0.05 -> 0.03)
+    if (abs(linear_accel) < 0.03) linear_accel = 0;
+    
+    // 生の速度計算
+    float raw_velocity = (velocity + linear_accel * dt) * 0.999;
+    
+    // --- 移動平均フィルタ (5サンプル) ---
+    static float velBuffer[5] = {0};
+    static int velIdx = 0;
+    velBuffer[velIdx] = raw_velocity;
+    velIdx = (velIdx + 1) % 5;
+    
+    float smooth_velocity = 0;
+    for(int i=0; i<5; i++) smooth_velocity += velBuffer[i];
+    smooth_velocity /= 5.0;
+    
+    velocity = raw_velocity; // 次回の積算用に生値を保持
 
     if (velocity > 4.0) velocity = 4.0;
     if (velocity < -4.0) velocity = -4.0;
@@ -141,7 +155,8 @@ void loop() {
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
       lastBleTime = now_millis;
       if (Bluefruit.connected()) {
-        vbtCharacteristic.notify(&velocity, 4);
+        // BLEには平滑化した値を送る
+        vbtCharacteristic.notify(&smooth_velocity, 4);
       }
       
       // シリアル出力 (1秒に1回)

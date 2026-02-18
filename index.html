@@ -291,7 +291,7 @@
                 this.ctx = this.canvas.getContext('2d');
                 this.data = [];
                 this.maxPoints = 100;
-                this.yLimit = 10; // ±10m/s
+                this.yLimit = 5; // ±5m/s (ユーザー要望により変更)
 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
@@ -320,7 +320,11 @@
                 ctx.strokeStyle = '#334155';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                for (let i = -10; i <= 10; i += 5) {
+
+                // 範囲に合わせてグリッド間隔を調整
+                const step = this.yLimit <= 5 ? 1 : 5;
+
+                for (let i = -this.yLimit; i <= this.yLimit; i += step) {
                     let y = height / 2 - (i / this.yLimit) * (height / 2);
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
@@ -461,7 +465,7 @@
 
                         // レップ検知
                         const now = Date.now();
-                        if (currentVel > 0.25) { // しきい値を少し上げた
+                        if (currentVel > 0.15) { // しきい値を下げた (0.25 -> 0.15)
                             if (!isMoving && (now - lastRepTime > LOCKOUT_MS)) {
                                 isMoving = true;
                                 moveStartTime = now;
@@ -474,10 +478,10 @@
                                     document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
                                 }
                             }
-                        } else if (isMoving && currentVel < 0.10) {
+                        } else if (isMoving && currentVel < 0.05) {
                             // レップ終了判定
                             const duration = now - moveStartTime;
-                            if (currentPeak > 0.25 && duration > MIN_DURATION_MS) {
+                            if (currentPeak > 0.15 && duration > MIN_DURATION_MS) {
                                 // 1レップ完了！
                                 const d = new Date();
                                 const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
