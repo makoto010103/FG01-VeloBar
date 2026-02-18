@@ -16,6 +16,10 @@ unsigned long lastBleTime = 0;
 // 接続・切断のイベントハンドラ
 void connect_callback(uint16_t conn_handle) {
   Serial.println("🔗 Connected!");
+  
+  // 接続後に通信パラメータを最適化 (11.25ms 〜 30ms)
+  // これにより、スマホ側がデータを要求する頻度が上がり、バッファ詰まりを防ぎます
+  Bluefruit.Periph.setConnInterval(9, 24);
 }
 
 void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
@@ -30,7 +34,7 @@ void setup() {
   pinMode(D3, OUTPUT); digitalWrite(D3, HIGH);
   delay(500);
 
-  Serial.println("--- VBT Device Final Stable Ver ---");
+  Serial.println("--- VBT Device Ultra-Stable Ver ---");
 
   if (IMU.begin() < 0) {
     Serial.println("❌ Sensor Error");
@@ -47,10 +51,14 @@ void setup() {
     grav_mag = sum / 40.0;
   }
 
-  // Bluetooth設定の強化
+  // Bluetooth設定の最適化
   Bluefruit.begin();
   Bluefruit.setTxPower(4); 
   Bluefruit.setName("VBT_Device");
+  
+  // MTU（一度に送れるデータ量）を最大にリクエスト
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+  
   Bluefruit.Periph.setConnectCallback(connect_callback);
   Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
 
@@ -59,6 +67,7 @@ void setup() {
   vbtCharacteristic.setFixedLen(4);
   vbtCharacteristic.begin();
 
+  // アドバタイズ設定
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE); 
   Bluefruit.Advertising.addService(vbtService);
   Bluefruit.Advertising.addName();
@@ -82,11 +91,9 @@ void loop() {
     float ay = IMU.accY();
     float az = IMU.accZ();
     
-    // 3軸の合成加速度（傾き耐性）
     float current_mag = sqrt(ax*ax + ay*ay + az*az);
     float linear_accel = (current_mag - grav_mag) * 9.80665;
 
-    // 静止判定
     static float last_mag = 1.0;
     float diff = abs(current_mag - last_mag);
     last_mag = current_mag;
@@ -95,30 +102,35 @@ void loop() {
     if (diff < 0.02) stillCount++;
     else stillCount = 0;
 
-    // 自動ゼロリセット（0.1秒静止でリセット）
     if (stillCount > 20) {
         grav_mag = grav_mag * 0.9 + current_mag * 0.1;
         velocity = 0;
     }
 
-    // 感度調整（スクワット対応: 0.25 -> 0.15）
     if (abs(linear_accel) < 0.15) linear_accel = 0;
-
-    // 積分（リークを弱めてゆっくりした動きを保持: 0.99 -> 0.998）
     velocity = (velocity + linear_accel * dt) * 0.998;
 
-    // リミッター
     if (velocity > 4.0) velocity = 4.0;
     if (velocity < -4.0) velocity = -4.0;
 
-    // 送信
+    // 通信処理
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
       lastBleTime = now_millis;
       if (Bluefruit.connected()) {
-        vbtCharacteristic.notify(&velocity, 4);
+        // notifyが成功したかチェック（失敗＝バッファ詰まりの可能性）
+        if (!vbtCharacteristic.notify(&velocity, 4)) {
+           // 失敗時はコンソールで警告
+           // Serial.println("BLE Notify Full!");
+        }
       }
-      Serial.print("Acc:"); Serial.print(linear_accel, 2);
-      Serial.print(" | Vel:"); Serial.println(velocity, 2);
+      
+      // シリアル出力の頻度を下げて負荷を軽減 (1秒に1回程度に制限)
+      static unsigned long lastSerialTime = 0;
+      if (now_millis - lastSerialTime >= 1000) {
+          lastSerialTime = now_millis;
+          Serial.print("V:"); Serial.print(velocity, 2);
+          Serial.print(" G:"); Serial.println(grav_mag, 3);
+      }
     }
   }
   delay(5); 
