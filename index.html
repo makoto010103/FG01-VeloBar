@@ -403,8 +403,8 @@
             let isMoving = false;
             let graph = new LiveGraph('vbtCanvas');
 
-            const SERVICE_UUID = 0x180C;
-            const CHARACTERISTIC_UUID = 0x2A6E;
+            const SERVICE_UUID = '0000180c-0000-1000-8000-00805f9b34fb';
+            const CHARACTERISTIC_UUID = '00002a6e-0000-1000-8000-00805f9b34fb';
 
             const connectBtn = document.getElementById('connect-btn');
             const velDisplay = document.getElementById('velocity');
@@ -503,7 +503,9 @@
                     });
 
                 } catch (error) {
-                    setLog('❌ エラー: ' + error.message, '#ef4444');
+                    console.error(error);
+                    const errorMsg = error.message || JSON.stringify(error) || 'Unknown error';
+                    setLog('❌ エラー: ' + errorMsg, '#ef4444');
                 }
             });
 
