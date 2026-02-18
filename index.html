@@ -253,9 +253,20 @@
             </div>
         </div>
 
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;">System Console</h3>
+                <button class="csv-btn" style="padding: 4px 10px; font-size: 0.7rem;"
+                    onclick="clearConsole()">Clear</button>
+            </div>
+            <div id="connection-log" class="connection-log"
+                style="height: 120px; overflow-y: auto; text-align: left; font-family: 'Courier New', monospace; font-size: 0.8rem; display: flex; flex-direction: column-reverse;">
+                <div>> システム準備完了</div>
+            </div>
+        </div>
+
         <div class="controls">
             <button id="connect-btn">デバイスに接続する</button>
-            <div id="connection-log" class="connection-log">システムを読み込んでいます...</div>
         </div>
     </div>
 
@@ -337,10 +348,20 @@
         function setLog(msg, color = null) {
             const logEl = document.getElementById('connection-log');
             if (logEl) {
-                logEl.innerHTML = msg;
-                logEl.style.color = color || 'var(--text-dim)';
+                const line = document.createElement('div');
+                line.style.color = color || 'var(--text-dim)';
+                line.innerHTML = `> ${msg}`;
+                logEl.prepend(line);
+                // 30件超えたら古いものを削除
+                if (logEl.children.length > 30) {
+                    logEl.removeChild(logEl.lastChild);
+                }
             }
         }
+
+        window.clearConsole = function () {
+            document.getElementById('connection-log').innerHTML = '<div>> ログを削除しました</div>';
+        };
 
         let rawLogBuffer = [];
         let isRawRecording = false;
