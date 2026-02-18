@@ -173,11 +173,15 @@ void loop() {
         velocity *= 0.8; // 強い減衰
         if (abs(velocity) < 0.01) velocity = 0;
     } else {
-        // デッドゾーン (ノイズ除去)
-        if (abs(vertical_accel_mps2) < 0.05) vertical_accel_mps2 = 0;
+        // ノイズしきい値を引き下げ (0.05 -> 0.02)
+    // 6軸合成によりノイズ自体が減っているので、より小さな値を拾えるようにする
+    if (abs(vertical_accel_mps2) < 0.02) vertical_accel_mps2 = 0;
 
-        velocity += vertical_accel_mps2 * dt;
-        velocity *= 0.999; // わずかな減衰でドリフト発散防止
+    velocity += vertical_accel_mps2 * dt;
+    // 減衰をほぼ無効化 (0.999 -> 1.0)
+    // 動作中の速度低下を防ぐ。静止時は強力なZUPTが働くため問題なし。
+    // velocity *= 1.0; 
+
     }
 
     // --- 安全リミット ---
