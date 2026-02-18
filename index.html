@@ -1,22 +1,30 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VBT Dashboard</title>
+    <title>VeloBar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --accent-color: #38bdf8;
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
+            --bg-color: #050510;
+            --card-bg: rgba(10, 20, 35, 0.7);
+            --accent-cyan: #00f3ff;
+            --accent-pink: #ff00ff;
+            --text-main: #e0f2fe;
+            --text-dim: #64748b;
+            --grid-color: rgba(0, 243, 255, 0.05);
         }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Orbitron', sans-serif;
             background-color: var(--bg-color);
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
             color: var(--text-main);
             margin: 0;
             display: flex;
@@ -24,48 +32,94 @@
             align-items: center;
             min-height: 100vh;
             padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* CRT Scanline effect */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 999;
         }
 
         .container {
             width: 100%;
             max-width: 600px;
+            position: relative;
+            z-index: 10;
         }
 
         .header {
             text-align: center;
             margin-bottom: 30px;
+            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.05), transparent);
+            padding: 20px;
+            border-top: 1px solid var(--accent-cyan);
+            border-bottom: 1px solid var(--accent-cyan);
+            text-shadow: 0 0 10px var(--accent-cyan);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.8rem;
+            letter-spacing: 4px;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
         }
 
         .card {
             background-color: var(--card-bg);
-            border-radius: 16px;
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 2px;
             padding: 24px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.05);
             text-align: center;
+            backdrop-filter: blur(4px);
+            position: relative;
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            right: -1px;
+            width: 8px;
+            height: 8px;
+            border-bottom: 2px solid var(--accent-cyan);
+            border-right: 2px solid var(--accent-cyan);
         }
 
         .velocity-display {
-            font-size: 8rem;
-            font-weight: 800;
-            color: var(--accent-color);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 7rem;
+            font-weight: 400;
+            color: var(--accent-cyan);
             margin: 10px 0;
             line-height: 1;
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
         }
 
         .unit {
-            font-size: 1.5rem;
+            font-size: 1rem;
             color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
         .chart-container {
             height: 200px;
             width: 100%;
-            position: relative;
-            background: #0f172a;
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 243, 255, 0.3);
             overflow: hidden;
-            border: 1px solid #334155;
         }
 
         canvas {
@@ -76,58 +130,66 @@
 
         .status-dot {
             display: inline-block;
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background-color: #ef4444;
             margin-right: 8px;
+            box-shadow: 0 0 8px #ef4444;
         }
 
         .status-dot.connected {
-            background-color: #22c55e;
-            box-shadow: 0 0 10px #22c55e;
+            background-color: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
         }
 
         button {
-            background-color: var(--accent-color);
-            color: #000;
-            border: none;
-            padding: 16px 32px;
-            border-radius: 12px;
+            background-color: rgba(0, 243, 255, 0.05);
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+            padding: 14px 28px;
+            border-radius: 2px;
+            font-family: 'Orbitron', sans-serif;
             font-weight: 700;
             cursor: pointer;
-            font-size: 1.1rem;
+            font-size: 1rem;
             transition: all 0.2s;
-            box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.39);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        button:active {
-            transform: scale(0.95);
+        button:hover {
+            background-color: var(--accent-cyan);
+            color: #000;
+            box-shadow: 0 0 15px var(--accent-cyan);
         }
 
         button:disabled {
-            background-color: #475569;
-            color: #94a3b8;
-            cursor: not-allowed;
+            border-color: #334155;
+            color: #475569;
+            background: transparent;
             box-shadow: none;
+            cursor: not-allowed;
         }
 
         .log-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            font-family: 'Share Tech Mono', monospace;
             font-size: 0.9rem;
         }
 
-        .log-table th,
-        .log-table td {
+        .log-table th {
+            color: var(--accent-pink);
+            border-bottom: 1px solid var(--accent-pink);
+            padding: 10px;
             text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #334155;
         }
 
-        .log-table th {
-            color: var(--text-dim);
+        .log-table td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            color: var(--text-main);
         }
 
         .controls {
@@ -136,30 +198,31 @@
             gap: 15px;
             align-items: center;
             margin-top: 20px;
-            padding: 20px;
-            background: rgba(30, 41, 59, 0.5);
-            border-radius: 16px;
         }
 
         .connection-log {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+            background: rgba(0, 0, 0, 0.4);
+            color: var(--accent-cyan);
+            text-align: left;
             line-height: 1.5;
-            background: #0f172a;
-            padding: 10px 20px;
-            border-radius: 8px;
-            width: 100%;
-            box-sizing: border-box;
-            border: 1px solid #334155;
+            padding: 10px;
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            font-size: 0.8rem;
         }
 
         .csv-btn {
-            background-color: transparent;
-            border: 1px solid var(--accent-color);
-            color: var(--accent-color);
-            box-shadow: none;
-            padding: 8px 16px;
+            padding: 4px 12px;
+            font-size: 0.7rem;
+            border: 1px solid var(--accent-pink);
+            color: var(--accent-pink);
+            background: transparent;
+        }
+
+        .csv-btn:hover {
+            background: var(--accent-pink);
+            color: #fff;
+            box-shadow: 0 0 10px var(--accent-pink);
         }
 
         .raw-controls {
@@ -171,30 +234,34 @@
         }
 
         .record-btn {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+
+        .record-btn:hover {
             background-color: #ef4444;
             color: white;
-            box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);
+            box-shadow: 0 0 10px #ef4444;
         }
 
         .record-btn.recording {
-            animation: pulse-red 1.5s infinite;
-            background-color: #991b1b;
+            animation: pulse-red 1s infinite;
+            background-color: #ef4444;
+            color: white;
         }
 
         @keyframes pulse-red {
             0% {
-                transform: scale(1);
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+                opacity: 1;
             }
 
-            70% {
-                transform: scale(1.05);
-                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            50% {
+                opacity: 0.6;
             }
 
             100% {
-                transform: scale(1);
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+                opacity: 1;
             }
         }
     </style>
@@ -202,30 +269,37 @@
 
 <body>
     <div class="container">
-        <div class="header" style="background-color: #1e3a8a; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
-            <h1>VBT Dashboard <span style="font-size: 0.5em; color: #fff;">v1.3</span></h1>
-            <div>
+        <div class="header">
+            <h1>VeloBar <span style="font-size: 0.4em; vertical-align: super; color: var(--accent-pink);">v2.0</span>
+            </h1>
+            <div style="font-size: 0.8rem; letter-spacing: 2px; color: var(--text-dim); margin-top: 5px;">KINETIC
+                ANALYSIS SYSTEM</div>
+            <div style="margin-top: 15px;">
                 <span id="status-dot" class="status-dot"></span>
-                <span id="status-text">接続待ち</span>
+                <span id="status-text" style="font-family: 'Share Tech Mono';">DISCONNECTED</span>
             </div>
         </div>
 
         <div class="card">
-            <div class="unit">Real-time Velocity</div>
+            <div class="unit">VELOCITY</div>
             <div id="velocity" class="velocity-display">0.00</div>
-            <div class="unit">m/s</div>
+            <div class="unit">M/S</div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-            <div class="card" id="last-rep-card" style="margin-bottom: 0; transition: background-color 0.3s;">
-                <div class="unit">Last Rep Max</div>
-                <div id="last-rep-max" style="font-size: 3rem; font-weight: 800; color: #fbbf24;">0.00</div>
-                <div class="unit">m/s</div>
+            <div class="card" id="last-rep-card" style="margin-bottom: 0; transition: background-color 0.1s;">
+                <div class="unit">PEAK</div>
+                <div id="last-rep-max"
+                    style="font-family: 'Share Tech Mono'; font-size: 2.5rem; font-weight: 700; color: var(--accent-pink); text-shadow: 0 0 10px var(--accent-pink);">
+                    0.00</div>
+                <div class="unit">M/S</div>
             </div>
             <div class="card" style="margin-bottom: 0;">
-                <div class="unit">Reps</div>
-                <div id="rep-count" style="font-size: 3rem; font-weight: 800; color: #22c55e;">0</div>
-                <div class="unit">total</div>
+                <div class="unit">REPS</div>
+                <div id="rep-count"
+                    style="font-family: 'Share Tech Mono'; font-size: 2.5rem; font-weight: 700; color: var(--accent-cyan); text-shadow: 0 0 10px var(--accent-cyan);">
+                    0</div>
+                <div class="unit">COUNT</div>
             </div>
         </div>
 
@@ -236,15 +310,15 @@
         </div>
 
         <div class="card" style="text-align: left;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Rep History (Peaks)</h3>
-                <button class="csv-btn" onclick="exportCSV()">History CSV</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--accent-pink); font-size: 1rem;">DATA_LOG</h3>
+                <button class="csv-btn" onclick="exportCSV()">EXPORT CSV</button>
             </div>
             <table class="log-table">
                 <thead>
                     <tr>
-                        <th>Time</th>
-                        <th>Max Velocity (m/s)</th>
+                        <th>TIME</th>
+                        <th>PEAK (m/s)</th>
                     </tr>
                 </thead>
                 <tbody id="log-body">
@@ -252,34 +326,30 @@
             </table>
         </div>
 
-        <div class="card" style="background: rgba(15, 23, 42, 0.3); border: 1px dashed var(--text-dim);">
-            <h3>Waveform Recorder (Raw Log)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 15px;">
-                全データポイントを保存します。ドリフト解析や波形分析に使用してください。
-            </p>
+        <div class="card" style="border: 1px dashed var(--text-dim);">
+            <h3 style="margin: 0; font-size: 1rem; color: var(--text-dim);">WAVEFORM_REC</h3>
+            <p style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 15px;">RAW DATA CAPTURE FOR ANALYSIS</p>
             <div class="raw-controls">
-                <button id="record-btn" class="record-btn" onclick="toggleRawRecording()">波形記録を開始</button>
-                <button id="download-raw-btn" class="csv-btn" onclick="exportRawCSV()" disabled>Raw CSV出力</button>
+                <button id="record-btn" class="record-btn" onclick="toggleRawRecording()">REC START</button>
+                <button id="download-raw-btn" class="csv-btn" onclick="exportRawCSV()" disabled>DL RAW</button>
             </div>
-            <div id="record-status" style="font-size: 0.8rem; margin-top: 10px; color: var(--accent-color);">
-                記録されたデータ点数: 0
-            </div>
+            <div id="record-status"
+                style="font-family: 'Share Tech Mono'; font-size: 0.8rem; margin-top: 10px; color: var(--accent-cyan);">
+                DATA POINTS: 0</div>
         </div>
 
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="margin: 0;">System Console</h3>
-                <button class="csv-btn" style="padding: 4px 10px; font-size: 0.7rem;"
-                    onclick="clearConsole()">Clear</button>
+                <h3 style="margin: 0; font-size: 1rem; color: var(--text-dim);">SYSTEM_CONSOLE</h3>
+                <button class="csv-btn" onclick="clearConsole()">CLEAR</button>
             </div>
             <div id="connection-log" class="connection-log"
-                style="height: 120px; overflow-y: auto; text-align: left; font-family: 'Courier New', monospace; font-size: 0.8rem; display: flex; flex-direction: column-reverse;">
-                <div>> システム準備完了</div>
+                style="height: 100px; overflow-y: auto; display: flex; flex-direction: column-reverse;">
+                <div>> SYSTEM READY</div>
             </div>
-        </div>
-
-        <div class="controls">
-            <button id="connect-btn">デバイスに接続する</button>
+            <div class="controls">
+                <button id="connect-btn" style="width: 100%;">INITIALIZE LINK</button>
+            </div>
         </div>
     </div>
 
@@ -316,44 +386,45 @@
 
                 ctx.clearRect(0, 0, width, height);
 
-                // グリッド線
-                ctx.strokeStyle = '#334155';
+                // Grid
+                ctx.strokeStyle = '#1e293b'; // Dark blue grid
                 ctx.lineWidth = 1;
                 ctx.beginPath();
 
-                // 範囲に合わせてグリッド間隔を調整
                 const step = this.yLimit <= 5 ? 1 : 5;
 
                 for (let i = -this.yLimit; i <= this.yLimit; i += step) {
                     let y = height / 2 - (i / this.yLimit) * (height / 2);
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
-                    // ラベル
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = '24px sans-serif';
+                    // Label
+                    ctx.fillStyle = '#475569';
+                    ctx.font = '16px Orbitron';
                     ctx.fillText(i, 5, y - 5);
                 }
                 ctx.stroke();
 
-                // センターライン（0点）
-                ctx.strokeStyle = '#94a3b8';
+                // Center Line
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(0, height / 2);
                 ctx.lineTo(width, height / 2);
                 ctx.stroke();
 
-                // データの描画
+                // Data Plot
                 if (this.data.length < 2) return;
 
-                ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00f3ff';
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 ctx.beginPath();
 
                 for (let i = 0; i < this.data.length; i++) {
                     let x = (i / (this.maxPoints - 1)) * width;
-                    // 描画用に値を±yLimitにクランプ（データ自体はそのまま）
                     let plotVal = Math.max(-this.yLimit, Math.min(this.yLimit, this.data[i]));
                     let y = height / 2 - (plotVal / this.yLimit) * (height / 2);
 
@@ -361,6 +432,7 @@
                     else ctx.lineTo(x, y);
                 }
                 ctx.stroke();
+                ctx.shadowBlur = 0; // Reset shadow
             }
         }
 
@@ -368,7 +440,7 @@
             const logEl = document.getElementById('connection-log');
             if (logEl) {
                 const line = document.createElement('div');
-                line.style.color = color || 'var(--text-dim)';
+                line.style.color = color || 'var(--accent-cyan)';
                 line.innerHTML = `> ${msg}`;
                 logEl.prepend(line);
                 // 30件超えたら古いものを削除
