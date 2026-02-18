@@ -401,6 +401,10 @@
             let logData = [];
             let currentPeak = 0;
             let isMoving = false;
+            let lastRepTime = 0;
+            let moveStartTime = 0;
+            const LOCKOUT_MS = 600;
+            const MIN_DURATION_MS = 250;
             let graph = new LiveGraph('vbtCanvas');
 
             const SERVICE_UUID = '0000180c-0000-1000-8000-00805f9b34fb';
@@ -456,19 +460,24 @@
                         }
 
                         // レップ検知
-                        if (currentVel > 0.20) {
-                            if (!isMoving) {
+                        const now = Date.now();
+                        if (currentVel > 0.25) { // しきい値を少し上げた
+                            if (!isMoving && (now - lastRepTime > LOCKOUT_MS)) {
                                 isMoving = true;
+                                moveStartTime = now;
                                 currentPeak = 0;
                             }
-                            if (currentVel > currentPeak) {
-                                currentPeak = currentVel;
-                                // リアルタイムでMaxを更新
-                                document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
+                            if (isMoving) {
+                                if (currentVel > currentPeak) {
+                                    currentPeak = currentVel;
+                                    // リアルタイムでMaxを更新
+                                    document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
+                                }
                             }
                         } else if (isMoving && currentVel < 0.10) {
-                            // レップ終了判定 (最低 0.25m/s 以上を本物とみなす)
-                            if (currentPeak > 0.25) {
+                            // レップ終了判定
+                            const duration = now - moveStartTime;
+                            if (currentPeak > 0.25 && duration > MIN_DURATION_MS) {
                                 // 1レップ完了！
                                 const d = new Date();
                                 const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -485,6 +494,9 @@
                                 setTimeout(() => card.style.backgroundColor = 'var(--card-bg)', 300);
 
                                 setLog(`Rep 完了! Max: ${currentPeak.toFixed(2)} m/s`, '#22c55e');
+                                lastRepTime = now; // ロックアウト開始
+                            } else if (isMoving) {
+                                setLog(`ノイズ破棄: Peak=${currentPeak.toFixed(2)}, Duration=${duration}ms`, '#94a3b8');
                             }
                             isMoving = false;
                         }
