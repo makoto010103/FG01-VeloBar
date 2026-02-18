@@ -124,8 +124,8 @@ void loop() {
     if (diff < 0.015) stillCount++; // より厳密な静止判定
     else stillCount = 0;
 
-    // 静止判定のしきい値を延長 (20 -> 150: 約0.75〜1秒の完全静止が必要)
-    if (stillCount > 150) {
+    // 静止判定のしきい値を微調整 (150 -> 80: 約0.4秒の完全静止で確定)
+    if (stillCount > 80) {
         // 重力値の更新をより穏やかに (0.1 -> 0.02)
         grav_mag = grav_mag * 0.98 + current_mag * 0.02;
         velocity = 0;
