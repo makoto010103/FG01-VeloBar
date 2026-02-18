@@ -121,15 +121,18 @@ void loop() {
     last_mag = current_mag;
 
     static int stillCount = 0;
-    if (diff < 0.02) stillCount++;
+    if (diff < 0.015) stillCount++; // より厳密な静止判定
     else stillCount = 0;
 
-    if (stillCount > 20) {
-        grav_mag = grav_mag * 0.9 + current_mag * 0.1;
+    // 静止判定のしきい値を延長 (20 -> 150: 約0.75〜1秒の完全静止が必要)
+    if (stillCount > 150) {
+        // 重力値の更新をより穏やかに (0.1 -> 0.02)
+        grav_mag = grav_mag * 0.98 + current_mag * 0.02;
         velocity = 0;
     }
 
-    if (abs(linear_accel) < 0.15) linear_accel = 0;
+    // ノイズしきい値を引き下げ (0.15 -> 0.05)
+    if (abs(linear_accel) < 0.05) linear_accel = 0;
     velocity = (velocity + linear_accel * dt) * 0.998;
 
     if (velocity > 4.0) velocity = 4.0;
