@@ -64,7 +64,6 @@ void setup() {
   Bluefruit.Advertising.addName();
   Bluefruit.Advertising.restartOnDisconnect(true); 
   Bluefruit.Advertising.setInterval(32, 244);    
-  Bluefruit.Advertising.setFastAdvertisingInterval(30); 
   Bluefruit.Advertising.start(0);                
 
   Serial.println("🚀 Ready to Connect!");
