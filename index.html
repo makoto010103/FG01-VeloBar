@@ -450,7 +450,7 @@
             let isMoving = false;
             let lastRepTime = 0;
             let moveStartTime = 0;
-            const LOCKOUT_MS = 600;
+            const LOCKOUT_MS = 300;
             const MIN_DURATION_MS = 250;
             let graph = new LiveGraph('vbtCanvas');
             const toneGen = new ToneGenerator(); // インスタンス作成
@@ -514,7 +514,7 @@
 
                         // レップ検知
                         const now = Date.now();
-                        if (currentVel > 0.15) { // しきい値を下げた (0.25 -> 0.15)
+                        if (currentVel > 0.10) { // しきい値をさらに下げた (0.15 -> 0.10)
                             if (!isMoving && (now - lastRepTime > LOCKOUT_MS)) {
                                 isMoving = true;
                                 moveStartTime = now;
@@ -530,7 +530,7 @@
                         } else if (isMoving && currentVel < 0.05) {
                             // レップ終了判定
                             const duration = now - moveStartTime;
-                            if (currentPeak > 0.15 && duration > MIN_DURATION_MS) {
+                            if (currentPeak > 0.10 && duration > MIN_DURATION_MS) {
                                 // 1レップ完了！
                                 const d = new Date();
                                 const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
