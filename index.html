@@ -400,6 +400,47 @@
             }
         }
 
+        // --- 音声フィードバック ---
+        class ToneGenerator {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            resume() {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playSuccess() {
+                if (!this.ctx) this.init();
+                this.resume();
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                // 洗練された "Ding" 音 (E5 -> A4 のような減衰)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.6);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.6);
+            }
+        }
+
         window.addEventListener('load', () => {
             let device, characteristic;
             let logData = [];
@@ -410,6 +451,7 @@
             const LOCKOUT_MS = 600;
             const MIN_DURATION_MS = 250;
             let graph = new LiveGraph('vbtCanvas');
+            const toneGen = new ToneGenerator(); // インスタンス作成
 
             const SERVICE_UUID = '0000180c-0000-1000-8000-00805f9b34fb';
             const CHARACTERISTIC_UUID = '00002a6e-0000-1000-8000-00805f9b34fb';
@@ -429,6 +471,8 @@
             }
 
             connectBtn.addEventListener('click', async () => {
+                toneGen.init(); // ユーザー操作でAudioContextを初期化
+                toneGen.resume();
                 try {
                     setLog('🔍 デバイスを探しています...');
                     device = await navigator.bluetooth.requestDevice({
@@ -491,6 +535,9 @@
                                 // Repカウンター更新
                                 const repEl = document.getElementById('rep-count');
                                 repEl.innerText = parseInt(repEl.innerText) + 1;
+
+                                // 音を鳴らす
+                                toneGen.playSuccess();
 
                                 // 完了エフェクト（フラッシュ）
                                 const card = document.getElementById('last-rep-card');
