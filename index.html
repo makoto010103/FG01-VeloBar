@@ -491,9 +491,12 @@
                     characteristic.addEventListener('characteristicvaluechanged', (event) => {
                         const raw = event.target.value;
                         const velocity = raw.getFloat32(0, true);
-                        const currentVel = Number(velocity.toFixed(3));
+                        let currentVel = Number(velocity.toFixed(3));
 
                         if (isNaN(currentVel)) return;
+
+                        // 表示用のデッドゾーン (0.02未満は0にする)
+                        if (Math.abs(currentVel) < 0.02) currentVel = 0.0;
 
                         // グラフ更新
                         graph.addPoint(currentVel);
