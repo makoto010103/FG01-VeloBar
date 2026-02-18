@@ -456,19 +456,19 @@
                         }
 
                         // レップ検知
-                        if (currentVel > 0.15) {
+                        if (currentVel > 0.20) {
                             if (!isMoving) {
                                 isMoving = true;
                                 currentPeak = 0;
                             }
                             if (currentVel > currentPeak) {
                                 currentPeak = currentVel;
-                                // リアルタイムでもMaxを更新（挙上中）
+                                // リアルタイムでMaxを更新
                                 document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
                             }
-                        } else if (isMoving && currentVel < 0.05) {
-                            // レップ終了判定
-                            if (currentPeak > 0.2) {
+                        } else if (isMoving && currentVel < 0.10) {
+                            // レップ終了判定 (最低 0.25m/s 以上を本物とみなす)
+                            if (currentPeak > 0.25) {
                                 // 1レップ完了！
                                 const d = new Date();
                                 const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
