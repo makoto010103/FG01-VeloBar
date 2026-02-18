@@ -14,8 +14,8 @@ float grav_mag = 1.0;
 const unsigned long BLE_INTERVAL_MS = 100;    
 unsigned long lastBleTime = 0;
 
-// Onboard LED for status (Red on XIAO nRF52840 is usually D6/LED_RED)
-#define LED_HEARTBEAT LED_BLUE
+// Onboard LED for status (Using Red as per user request)
+#define LED_HEARTBEAT LED_RED
 
 // 接続・切断のイベントハンドラ
 void connect_callback(uint16_t conn_handle) {
