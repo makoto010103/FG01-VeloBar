@@ -203,7 +203,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>VBT Dashboard</h1>
+            <h1>VBT Dashboard <span style="font-size: 0.5em; color: #94a3b8;">v1.2</span></h1>
             <div>
                 <span id="status-dot" class="status-dot"></span>
                 <span id="status-text">接続待ち</span>
@@ -353,7 +353,9 @@
 
                 for (let i = 0; i < this.data.length; i++) {
                     let x = (i / (this.maxPoints - 1)) * width;
-                    let y = height / 2 - (this.data[i] / this.yLimit) * (height / 2);
+                    // 描画用に値を±yLimitにクランプ（データ自体はそのまま）
+                    let plotVal = Math.max(-this.yLimit, Math.min(this.yLimit, this.data[i]));
+                    let y = height / 2 - (plotVal / this.yLimit) * (height / 2);
 
                     if (i === 0) ctx.moveTo(x, y);
                     else ctx.lineTo(x, y);

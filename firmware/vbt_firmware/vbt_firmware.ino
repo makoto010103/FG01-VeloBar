@@ -184,9 +184,10 @@ void loop() {
 
     }
 
-    // --- 安全リミット ---
-    if (velocity > 5.0) velocity = 5.0;
-    if (velocity < -5.0) velocity = -5.0;
+    // --- 安全リミット (解除) ---
+    // Webアプリ側のグラフ表示のみ±5m/sとする
+    // if (velocity > 5.0) velocity = 5.0;
+    // if (velocity < -5.0) velocity = -5.0;
 
     // --- 5. BLE送信 & ログ ---
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
