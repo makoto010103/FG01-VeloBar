@@ -211,9 +211,22 @@
         </div>
 
         <div class="card">
-            <div class="unit">Current Velocity</div>
+            <div class="unit">Real-time Velocity</div>
             <div id="velocity" class="velocity-display">0.00</div>
             <div class="unit">m/s</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div class="card" id="last-rep-card" style="margin-bottom: 0; transition: background-color 0.3s;">
+                <div class="unit">Last Rep Max</div>
+                <div id="last-rep-max" style="font-size: 3rem; font-weight: 800; color: #fbbf24;">0.00</div>
+                <div class="unit">m/s</div>
+            </div>
+            <div class="card" style="margin-bottom: 0;">
+                <div class="unit">Reps</div>
+                <div id="rep-count" style="font-size: 3rem; font-weight: 800; color: #22c55e;">0</div>
+                <div class="unit">total</div>
+            </div>
         </div>
 
         <div class="card">
@@ -444,16 +457,35 @@
 
                         // レップ検知
                         if (currentVel > 0.15) {
-                            isMoving = true;
-                            if (currentVel > currentPeak) currentPeak = currentVel;
+                            if (!isMoving) {
+                                isMoving = true;
+                                currentPeak = 0;
+                            }
+                            if (currentVel > currentPeak) {
+                                currentPeak = currentVel;
+                                // リアルタイムでもMaxを更新（挙上中）
+                                document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
+                            }
                         } else if (isMoving && currentVel < 0.05) {
+                            // レップ終了判定
                             if (currentPeak > 0.2) {
+                                // 1レップ完了！
                                 const d = new Date();
                                 const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
                                 logBody.insertAdjacentHTML('afterbegin', `<tr><td>${timeStr}</td><td>${currentPeak.toFixed(2)}</td></tr>`);
                                 logData.push({ time: timeStr, velocity: currentPeak.toFixed(2) });
+
+                                // Repカウンター更新
+                                const repEl = document.getElementById('rep-count');
+                                repEl.innerText = parseInt(repEl.innerText) + 1;
+
+                                // 完了エフェクト（フラッシュ）
+                                const card = document.getElementById('last-rep-card');
+                                card.style.backgroundColor = '#334155';
+                                setTimeout(() => card.style.backgroundColor = 'var(--card-bg)', 300);
+
+                                setLog(`Rep 完了! Max: ${currentPeak.toFixed(2)} m/s`, '#22c55e');
                             }
-                            currentPeak = 0;
                             isMoving = false;
                         }
                     });
