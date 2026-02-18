@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include "ICM42688.h"
 
+// センサーと通信のオブジェクト
 ICM42688 IMU(Wire, 0x68);
 BLEService        vbtService = BLEService(0x180C);
 BLECharacteristic vbtCharacteristic = BLECharacteristic(0x2A6E);
@@ -13,12 +14,13 @@ float grav_mag = 1.0;
 const unsigned long BLE_INTERVAL_MS = 100;    
 unsigned long lastBleTime = 0;
 
+// Onboard LED for status (Red on XIAO nRF52840 is usually D6/LED_RED)
+#define LED_HEARTBEAT LED_BLUE
+
 // 接続・切断のイベントハンドラ
 void connect_callback(uint16_t conn_handle) {
   Serial.println("🔗 Connected!");
-  
-  // 接続後に通信パラメータを最適化 (11.25ms 〜 30ms)
-  // これにより、スマホ側がデータを要求する頻度が上がり、バッファ詰まりを防ぎます
+  // 接続パラメータの最適化
   Bluefruit.Periph.setConnInterval(9, 24);
 }
 
@@ -27,14 +29,28 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 }
 
 void setup() {
+  // ステータスLED設定
+  pinMode(LED_HEARTBEAT, OUTPUT);
+  digitalWrite(LED_HEARTBEAT, HIGH); // 消灯(Negative Logic)
+
   Serial.begin(115200);
-  delay(1000);
+  // 起動時の初期待ちを少し長くして安定させる
+  for(int i=0; i<10; i++) { delay(200); digitalWrite(LED_HEARTBEAT, i%2); }
+  digitalWrite(LED_HEARTBEAT, HIGH);
+
   pinMode(D1, OUTPUT); digitalWrite(D1, HIGH);
   pinMode(D2, OUTPUT); digitalWrite(D2, LOW);
   pinMode(D3, OUTPUT); digitalWrite(D3, HIGH);
   delay(500);
 
-  Serial.println("--- VBT Device Ultra-Stable Ver ---");
+  Serial.println("--- VBT Device Immortal Ver ---");
+
+  // --- Watchdog Timer (WDT) 設定 ---
+  // 5秒間プログラムが止まったら自動的にリセットをかけます
+  NRF_WDT->CONFIG         = 0x01;     // Stop WDT when sleeping
+  NRF_WDT->CRV            = 5 * 32768; // 5 seconds (Clock is 32.768kHz)
+  NRF_WDT->RREN           = 0x01;     // Enable reload register 0
+  NRF_WDT->TASKS_START    = 1;        // Start WDT
 
   if (IMU.begin() < 0) {
     Serial.println("❌ Sensor Error");
@@ -46,18 +62,18 @@ void setup() {
             float ax=IMU.accX(), ay=IMU.accY(), az=IMU.accZ();
             sum += sqrt(ax*ax + ay*ay + az*az);
         }
+        NRF_WDT->RR[0] = WDT_RR_RR_Reload; // WDTをリフレッシュ
         delay(10);
     }
     grav_mag = sum / 40.0;
+    Serial.print("Initial Gravity: "); Serial.println(grav_mag, 3);
   }
 
-  // Bluetooth設定の最適化
+  // Bluetooth設定 (configはbeginの前に呼ぶ必要がある)
+  Bluefruit.configPrphBandwidth(BANDWIDTH_HIGH); // 極端なMAXより安定を取ってHIGHに設定
   Bluefruit.begin();
   Bluefruit.setTxPower(4); 
   Bluefruit.setName("VBT_Device");
-  
-  // MTU（一度に送れるデータ量）を最大にリクエスト
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   
   Bluefruit.Periph.setConnectCallback(connect_callback);
   Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
@@ -67,7 +83,6 @@ void setup() {
   vbtCharacteristic.setFixedLen(4);
   vbtCharacteristic.begin();
 
-  // アドバタイズ設定
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE); 
   Bluefruit.Advertising.addService(vbtService);
   Bluefruit.Advertising.addName();
@@ -80,6 +95,16 @@ void setup() {
 }
 
 void loop() {
+  // --- 1. WDTのリフレッシュ (生きてるアピール) ---
+  NRF_WDT->RR[0] = WDT_RR_RR_Reload;
+
+  // --- 2. ステータスLEDの点滅 (Hearbeat) ---
+  static unsigned long lastBlink = 0;
+  if (millis() - lastBlink > 500) {
+      lastBlink = millis();
+      digitalWrite(LED_HEARTBEAT, !digitalRead(LED_HEARTBEAT));
+  }
+
   unsigned long now_micros = micros();
   unsigned long now_millis = millis();
   float dt = (now_micros - lastUpdate) / 1000000.0;
@@ -87,10 +112,7 @@ void loop() {
   if (dt > 0.1 || dt <= 0) dt = 0;
 
   if (IMU.getAGT() > 0) {
-    float ax = IMU.accX();
-    float ay = IMU.accY();
-    float az = IMU.accZ();
-    
+    float ax=IMU.accX(), ay=IMU.accY(), az=IMU.accZ();
     float current_mag = sqrt(ax*ax + ay*ay + az*az);
     float linear_accel = (current_mag - grav_mag) * 9.80665;
 
@@ -113,18 +135,13 @@ void loop() {
     if (velocity > 4.0) velocity = 4.0;
     if (velocity < -4.0) velocity = -4.0;
 
-    // 通信処理
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
       lastBleTime = now_millis;
       if (Bluefruit.connected()) {
-        // notifyが成功したかチェック（失敗＝バッファ詰まりの可能性）
-        if (!vbtCharacteristic.notify(&velocity, 4)) {
-           // 失敗時はコンソールで警告
-           // Serial.println("BLE Notify Full!");
-        }
+        vbtCharacteristic.notify(&velocity, 4);
       }
       
-      // シリアル出力の頻度を下げて負荷を軽減 (1秒に1回程度に制限)
+      // シリアル出力 (1秒に1回)
       static unsigned long lastSerialTime = 0;
       if (now_millis - lastSerialTime >= 1000) {
           lastSerialTime = now_millis;
