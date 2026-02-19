@@ -415,6 +415,19 @@
     </div>
 
     <div class="container">
+
+        <!-- Session Setup -->
+        <div class="session-setup"
+            style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 12px; width: 100%;">
+            <input type="text" id="exercise-name" placeholder="種目名 (例: SQ)" class="mode-select"
+                style="width: 100%; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <input type="number" id="weight-input" placeholder="kg" class="mode-select"
+                    style="width: 100%; box-sizing: border-box;">
+                <span style="font-size: 0.8rem; color: var(--text-dim);">kg</span>
+            </div>
+        </div>
+
         <!-- Main Metric ID for JS reference -->
         <div id="metric-card" class="metric-card">
             <div class="metric-label">最高速度 (Peak Velocity)</div>
@@ -431,7 +444,13 @@
             <div class="sub-metrics">
                 <div class="sub-metric">
                     <span class="label">回数</span>
-                    <span id="rep-count" class="value">0</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button onclick="adjustRep(-1)"
+                            style="padding: 2px 6px; background: #334155; border: none; color: white; border-radius: 4px;">-</button>
+                        <span id="rep-count" class="value">0</span>
+                        <button onclick="adjustRep(1)"
+                            style="padding: 2px 6px; background: #334155; border: none; color: white; border-radius: 4px;">+</button>
+                    </div>
                 </div>
                 <div class="sub-metric">
                     <span class="label">ベスト</span>
@@ -458,8 +477,8 @@
             <button class="btn" id="record-btn" onclick="toggleRawRecording()">
                 <span>🔴</span> 波形記録
             </button>
-            <button class="btn" onclick="exportCSV()">
-                <span>💾</span> CSV保存
+            <button class="btn" onclick="copyToClipboard()">
+                <span>📋</span> コピー (CSV)
             </button>
         </div>
 
@@ -740,17 +759,87 @@
             resetSetState(); // Reset after summary closed
         }
 
-        // CSV Export
-        window.exportCSV = function () {
-            // Basic Export Logic
-            let csvContent = "Time,Peak,Fatigue\n";
-            // Ideally we have a log buffer, using simple alert for now if empty
-            alert("CSV Download triggered (See console for details)");
+        // v3.1 Data Management
+        window.adjustRep = function (delta) {
+            repCountInSet += delta;
+            if (repCountInSet < 0) repCountInSet = 0;
+            document.getElementById('rep-count').innerText = repCountInSet;
+            // Best Velocity check logic remains as is (locked after rep 2).
+            // Manual adjustment does not trigger re-lock or unlock logic to keep it simple.
+        }
+
+        window.copyToClipboard = function () {
+            const exercise = document.getElementById('exercise-name').value || "NoName";
+            const load = document.getElementById('weight-input').value || "0";
+
+            // Generate CSV Content
+            let csv = "Exercise,Weight(kg),Time,Peak(m/s),Fatigue(%)\n";
+
+            // Use logBody content for current session or logData array? 
+            // logData is not strictly coupled with "Current Set".
+            // Let's use the visible logBody for WYSIWYG or better, the logData array if we kept it synced.
+            // We need to ensure logData is populated.
+            // In v3.0 code `logData` was defined in `window.addEventListener` scope but not exposed.
+            // We need to parse the table or expose logData.
+            // Simplest: Parse the table rows.
+
+            const rows = document.querySelectorAll('#log-body tr');
+            if (rows.length === 0) {
+                alert("データがありません");
+                return;
+            }
+
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td');
+                const time = cols[0].innerText;
+                const peak = cols[1].innerText;
+                const fat = cols[3].innerText.replace('%', '');
+                csv += `${exercise},${load},${time},${peak},${fat}\n`;
+            });
+
+            // Clipboard API
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(csv).then(() => {
+                    alert("クリップボードにコピーしました！\nメモ帳などに貼り付けてください。");
+                }).catch(err => {
+                    console.error('Async: Could not copy text: ', err);
+                    fallbackCopyTextToClipboard(csv);
+                });
+            } else {
+                fallbackCopyTextToClipboard(csv);
+            }
         };
+
+        function fallbackCopyTextToClipboard(text) {
+            var textArea = document.createElement("textarea");
+            textArea.value = text;
+
+            // Avoid scrolling to bottom
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                var successful = document.execCommand('copy');
+                var msg = successful ? 'successful' : 'unsuccessful';
+                if (successful) alert("クリップボードにコピーしました！(Legacy)");
+                else alert("コピーに失敗しました。手動でコピーしてください。");
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                alert("コピー機能が制限されています。");
+            }
+
+            document.body.removeChild(textArea);
+        }
 
         window.resetMax = function () {
             resetSetState();
             /* Also clear log logic if needed */
+            document.getElementById('log-body').innerHTML = ""; // Clear table on reset
         }
 
         window.addEventListener('load', () => {
