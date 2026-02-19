@@ -372,8 +372,8 @@
                 this.canvas = document.getElementById(canvasId);
                 this.ctx = this.canvas.getContext('2d');
                 this.data = [];
-                // 50Hz * 30秒 = 1500点 (グラフの表示時間を大幅に延長)
-                this.maxPoints = 1500;
+                // 50Hz * 12秒 = 600点 (波形が見やすい長さに調整)
+                this.maxPoints = 600;
                 this.yLimit = 2; // ±2m/s (ユーザー要望により変更)
 
                 this.resize();
