@@ -549,8 +549,9 @@
                 try {
                     // ここでログを出したりAudioContextを触ると、Bluefyでは「ユーザー操作外」とみなされることがある
                     // なので、いきなり requestDevice を呼ぶ
+                    // 名前フィルタが原因で表示されない可能性があるため、すべて表示させる
                     device = await navigator.bluetooth.requestDevice({
-                        filters: [{ name: 'VBT_Device' }],
+                        acceptAllDevices: true,
                         optionalServices: [SERVICE_UUID]
                     });
 
