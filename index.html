@@ -549,10 +549,9 @@
                 try {
                     // ここでログを出したりAudioContextを触ると、Bluefyでは「ユーザー操作外」とみなされることがある
                     // なので、いきなり requestDevice を呼ぶ
-                    // 名前フィルタが原因で表示されない可能性があるため、すべて表示させる
+                    // 名前ではなくサービスUUIDで検索する（確実性アップ）
                     device = await navigator.bluetooth.requestDevice({
-                        acceptAllDevices: true,
-                        optionalServices: [SERVICE_UUID]
+                        filters: [{ services: [SERVICE_UUID] }]
                     });
 
                     // 接続成功してからUI更新やAudio初期化を行う
