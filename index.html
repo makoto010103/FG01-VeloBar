@@ -428,6 +428,18 @@
             </div>
         </div>
 
+        <!-- Sound Setup -->
+        <div style="margin-bottom: 12px; display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
+            <label style="font-size: 0.8rem; color: var(--text-dim);">通知音:</label>
+            <select id="sound-select" class="mode-select" style="width: auto;">
+                <option value="BELL">ベル (標準)</option>
+                <option value="GAME">ゲーム (8bit)</option>
+                <option value="BEEP">電子音</option>
+                <option value="MECHANICAL">機械音</option>
+                <option value="OFF">なし</option>
+            </select>
+        </div>
+
         <!-- Main Metric ID for JS reference -->
         <div id="metric-card" class="metric-card">
             <div class="metric-label">最高速度 (Peak Velocity)</div>
@@ -618,12 +630,17 @@
         class ToneGenerator {
             constructor() {
                 this.ctx = null;
+                this.soundType = 'BELL'; // Default
             }
 
             init() {
                 if (!this.ctx) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
                 }
+            }
+
+            setSoundType(type) {
+                this.soundType = type;
             }
 
             resume() {
@@ -633,30 +650,66 @@
             }
 
             playSuccess() {
+                if (this.soundType === 'OFF') return;
+
                 if (!this.ctx) this.init();
                 this.resume();
+
+                const now = this.ctx.currentTime;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.connect(gain);
                 gain.connect(this.ctx.destination);
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.6);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.6);
+
+                if (this.soundType === 'GAME') {
+                    // 8-bit Coin Sound
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(988, now); // B5
+                    osc.frequency.setValueAtTime(1319, now + 0.1); // E6
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.linearRampToValueAtTime(0.1, now + 0.1);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (this.soundType === 'BEEP') {
+                    // Simple Short Beep
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1000, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (this.soundType === 'MECHANICAL') {
+                    // Click / Mechanical
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
+                    gain.gain.setValueAtTime(0.5, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else {
+                    // BELL (Default) - Sophisticated Ding
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now);
+                    osc.frequency.exponentialRampToValueAtTime(440, now + 0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                }
             }
 
             playWarning() {
+                if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
                 this.resume();
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.connect(gain);
                 gain.connect(this.ctx.destination);
-                osc.type = 'triangle'; // Warning tone
-                osc.frequency.setValueAtTime(440, this.ctx.currentTime); // Lower pitch
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
                 gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
                 osc.start();
@@ -664,15 +717,15 @@
             }
 
             playStop() {
+                if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
                 this.resume();
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.connect(gain);
                 gain.connect(this.ctx.destination);
-                osc.type = 'sawtooth'; // Harsh tone
-                osc.frequency.setValueAtTime(220, this.ctx.currentTime); // Low pitch
-                // Double beep
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
                 gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
                 gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
                 gain.gain.setValueAtTime(0.3, this.ctx.currentTime + 0.3);
@@ -873,6 +926,14 @@
                 connectBtn.disabled = true;
                 return;
             }
+
+            // Sound Selector Logic
+            const soundSelect = document.getElementById('sound-select');
+            soundSelect.addEventListener('change', (e) => {
+                toneGen.setSoundType(e.target.value);
+                // Preview sound
+                toneGen.playSuccess();
+            });
 
             // Stillness Check Loop (1Hz)
             setInterval(() => {
