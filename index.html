@@ -372,8 +372,10 @@
                 this.canvas = document.getElementById(canvasId);
                 this.ctx = this.canvas.getContext('2d');
                 this.data = [];
-                this.maxPoints = 100;
-                this.yLimit = 5; // ±5m/s (ユーザー要望により変更)
+                // 50Hzでデータが来るため、10秒分保持するには 50 * 10 = 500点必要
+                // 少し余裕を持って 400点 (8秒) くらいにする
+                this.maxPoints = 400;
+                this.yLimit = 2; // ±2m/s (ユーザー要望により変更)
 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());

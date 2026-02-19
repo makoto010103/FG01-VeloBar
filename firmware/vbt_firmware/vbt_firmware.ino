@@ -26,7 +26,8 @@ Madgwick          filter;
 float velocity = 0.0;
 unsigned long lastUpdate = 0;
 
-const unsigned long BLE_INTERVAL_MS = 100;    
+// 50Hz (20ms) Update Rate for smoother graphs and better peak capture
+const unsigned long BLE_INTERVAL_MS = 20;
 unsigned long lastBleTime = 0;
 
 // Onboard LED for status (Using Red as per user request)
@@ -177,6 +178,15 @@ void loop() {
         }
     } else {
         static int static_frames = 0; // リセット
+    }
+
+    // --- 3.5 回転検知 (Rotation Clamp) ---
+    // バーベルの回転(Rolling)による誤検知を防ぐ
+    // 200dps以上の高速回転は通常の挙上動作ではないとみなす
+    if (gyro_mag > 200.0) {
+        vertical_accel_mps2 = 0;
+        // 回転中は速度も減衰させる
+        velocity *= 0.9;
     }
 
     // --- 4. 速度積分 ---
