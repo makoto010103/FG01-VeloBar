@@ -584,9 +584,13 @@
                         // 表示用のデッドゾーン (0.02未満は0にする)
                         if (Math.abs(currentVel) < 0.02) currentVel = 0.0;
 
+                        // ユーザー要望: 挙上時のみ（正の値のみ）を反映させる
+                        // 負の値（下向き）は 0.0 として扱い、グラフやMax表示に影響させない
+                        if (currentVel < 0) currentVel = 0.0;
+
                         // グラフ更新
                         graph.addPoint(currentVel);
-                        velDisplay.innerText = Math.abs(currentVel).toFixed(2);
+                        velDisplay.innerText = currentVel.toFixed(2);
 
                         // RAW記録
                         if (isRawRecording) {
