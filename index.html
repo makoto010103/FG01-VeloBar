@@ -392,32 +392,32 @@
     <!-- Overlay for Set Summary -->
     <div id="summary-overlay" class="summary-overlay" onclick="closeSummary()">
         <div class="summary-card">
-            <div class="summary-title">SET COMPLETE</div>
-            <div class="summary-row"><span>Best</span><span class="val" id="sum-best">-</span></div>
-            <div class="summary-row"><span>Avg</span><span class="val" id="sum-avg">-</span></div>
-            <div class="summary-row"><span>Reps</span><span class="val" id="sum-reps">-</span></div>
-            <div class="summary-reason" id="sum-reason">REASON</div>
-            <div style="margin-top: 20px; font-size: 0.8rem; color: #64748b;">(Tap to close)</div>
+            <div class="summary-title">セット終了</div>
+            <div class="summary-row"><span>自己ベスト</span><span class="val" id="sum-best">-</span></div>
+            <div class="summary-row"><span>平均速度</span><span class="val" id="sum-avg">-</span></div>
+            <div class="summary-row"><span>回数</span><span class="val" id="sum-reps">-</span></div>
+            <div class="summary-reason" id="sum-reason">理由</div>
+            <div style="margin-top: 20px; font-size: 0.8rem; color: #64748b;">(タップして閉じる)</div>
         </div>
     </div>
 
     <div class="header">
         <div class="header-left">
-            <h1>FG01-VBT</h1>
-            <span id="bt-status" class="status-badge">Disconnected</span>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.0</span></h1>
+            <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
         <select id="mode-select" class="mode-select" onchange="updateMode()">
-            <option value="POWER">POWER</option>
-            <option value="STRENGTH">STRENGTH</option>
-            <option value="HYPERTROPHY">HYPER</option>
+            <option value="POWER">パワー (瞬発力)</option>
+            <option value="STRENGTH">筋力 (高負荷)</option>
+            <option value="HYPERTROPHY">筋肥大 (回数)</option>
         </select>
     </div>
 
     <div class="container">
         <!-- Main Metric ID for JS reference -->
         <div id="metric-card" class="metric-card">
-            <div class="metric-label">Peak Velocity</div>
+            <div class="metric-label">最高速度 (Peak Velocity)</div>
             <div class="metric-value-container">
                 <span id="velocity-display" class="metric-value">0.00</span>
                 <span class="metric-unit">m/s</span>
@@ -426,19 +426,19 @@
             <div id="rep-change" class="rep-change">-</div>
 
             <!-- Alerts -->
-            <div id="alert-banner" class="alert-banner">POWER ZONE OUT</div>
+            <div id="alert-banner" class="alert-banner">パワーゾーン圏外</div>
 
             <div class="sub-metrics">
                 <div class="sub-metric">
-                    <span class="label">REP</span>
+                    <span class="label">回数</span>
                     <span id="rep-count" class="value">0</span>
                 </div>
                 <div class="sub-metric">
-                    <span class="label">BEST</span>
+                    <span class="label">ベスト</span>
                     <span id="set-best" class="value">0.00</span>
                 </div>
                 <div class="sub-metric">
-                    <span class="label">FATIGUE</span>
+                    <span class="label">疲労度</span>
                     <span id="fatigue-val" class="value fatigue-value">0%</span>
                 </div>
             </div>
@@ -450,16 +450,16 @@
 
         <div class="control-panel">
             <button id="connect-btn" class="btn btn-primary">
-                <span>⚡</span> Connect
+                <span>⚡</span> 接続
             </button>
             <button class="btn" onclick="resetMax()">
-                <span>🔄</span> Reset Sess.
+                <span>🔄</span> リセット
             </button>
             <button class="btn" id="record-btn" onclick="toggleRawRecording()">
-                <span>🔴</span> Rec RAW
+                <span>🔴</span> 波形記録
             </button>
             <button class="btn" onclick="exportCSV()">
-                <span>💾</span> CSV
+                <span>💾</span> CSV保存
             </button>
         </div>
 
@@ -467,10 +467,10 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Time</th>
-                        <th>Peak (m/s)</th>
-                        <th>%Change</th>
-                        <th>Fatigue</th>
+                        <th>時刻</th>
+                        <th>速度 (m/s)</th>
+                        <th>比率</th>
+                        <th>疲労度</th>
                     </tr>
                 </thead>
                 <tbody id="log-body">
