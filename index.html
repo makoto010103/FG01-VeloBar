@@ -906,11 +906,13 @@
             let lastMotionTime = Date.now();
 
             // Params
-            const LOCKOUT_MS = 300;
-            // ユーザー要望: 判定が短すぎてカウントされない -> 0.6sから0.4sに短縮
-            const MIN_DURATION_MS = 400;
+            const LOCKOUT_MS = 250;
+            // ユーザー要望: 判定が短くてカウントされない -> さらに短縮 0.25s
+            const MIN_DURATION_MS = 250;
 
-            let graph = new LiveGraph('vbtCanvas');
+            // v3.0 Parameters
+            const START_THRESHOLD = 0.15; // Easier to start
+            const END_THRESHOLD = 0.12;   // Easier to end (reset)
             const toneGen = new ToneGenerator();
 
             const SERVICE_UUID = '19b10010-e8f2-537e-4f6c-d104768a1214';
@@ -993,7 +995,9 @@
 
                         // --- Rep Detection Logic ---
                         const now = Date.now();
-                        if (currentVel > 0.20) {
+
+                        // Start of Rep
+                        if (currentVel > START_THRESHOLD) {
                             if (!isMoving && (now - lastRepTime > LOCKOUT_MS)) {
                                 isMoving = true;
                                 moveStartTime = now;
@@ -1004,11 +1008,11 @@
                                     currentPeak = currentVel;
                                 }
                             }
-                        } else if (isMoving && currentVel < 0.05) {
+                        } else if (isMoving && currentVel < END_THRESHOLD) {
                             // End of Rep Logic
                             const duration = now - moveStartTime;
 
-                            if (currentPeak > 0.25 && duration > MIN_DURATION_MS) {
+                            if (currentPeak > 0.15 && duration > MIN_DURATION_MS) {
                                 // Rep Validated
                                 repCountInSet++;
                                 setRepData.push(currentPeak);
