@@ -544,23 +544,34 @@
                 setLog('✅ 準備完了！<br>デバイスに接続してください');
             }
 
-            connectBtn.addEventListener('click', async () => {
-                toneGen.init(); // ユーザー操作でAudioContextを初期化
-                toneGen.resume();
+            connectBtn.onclick = async () => {
+                // iPhone/Bluefy対応: requestDeviceを最優先で呼び出す (ユーザー操作直下)
                 try {
-                    setLog('🔍 デバイスを探しています...');
+                    // ここでログを出したりAudioContextを触ると、Bluefyでは「ユーザー操作外」とみなされることがある
+                    // なので、いきなり requestDevice を呼ぶ
                     device = await navigator.bluetooth.requestDevice({
                         filters: [{ name: 'VBT_Device' }],
                         optionalServices: [SERVICE_UUID]
                     });
 
-                    setLog('🤝 接続しています...');
+                    // 接続成功してからUI更新やAudio初期化を行う
+                    setLog('🔍 デバイスが見つかりました。接続中...');
+                    toneGen.init();
+                    toneGen.resume();
+
                     const server = await device.gatt.connect();
                     const service = await server.getPrimaryService(SERVICE_UUID);
                     characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
                     await characteristic.startNotifications();
-                    setLog('📥 受信を開始しました！', '#38bdf8');
+                    setLog('📥 接続完了！データ受信開始', '#00f3ff');
+
+                    // UI更新
+                    statusDot.classList.add('connected');
+                    statusText.innerText = "CONNECTED";
+                    statusText.style.color = "#00f3ff";
+                    connectBtn.disabled = true;
+                    connectBtn.innerText = "LINK ESTABLISHED";
 
                     characteristic.addEventListener('characteristicvaluechanged', (event) => {
                         const raw = event.target.value;
@@ -581,7 +592,7 @@
                             const now = new Date();
                             const timeStr = `${now.getSeconds()}.${String(now.getMilliseconds()).padStart(3, '0')}`;
                             rawLogBuffer.push({ time: timeStr, velocity: currentVel });
-                            document.getElementById('record-status').innerText = `記録中: ${rawLogBuffer.length}点`;
+                            document.getElementById('record-status').innerText = `POINTS: ${rawLogBuffer.length}`;
                         }
 
                         // レップ検知
@@ -647,7 +658,7 @@
                     const errorMsg = error.message || JSON.stringify(error) || 'Unknown error';
                     setLog('❌ エラー: ' + errorMsg, '#ef4444');
                 }
-            });
+            };
 
             window.exportCSV = function () {
                 // RAW記録（全データ）があればそれを優先、なければピーク履歴を出力
