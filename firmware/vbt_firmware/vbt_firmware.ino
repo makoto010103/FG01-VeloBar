@@ -4,9 +4,23 @@
 #include "MadgwickAHRS.h" // 6軸センサーフュージョン
 
 // センサーと通信のオブジェクト
+// センサーと通信のオブジェクト
 ICM42688 IMU(Wire, 0x68);
-BLEService        vbtService = BLEService(0x180C);
-BLECharacteristic vbtCharacteristic = BLECharacteristic(0x2A6E);
+
+// Custom 128-bit UUIDs for VeloBar
+// Service: 19B10010-E8F2-537E-4F6C-D104768A1214
+const uint8_t UUID128_SVC[] = {
+    0x14, 0x12, 0x8A, 0x76, 0x04, 0xD1, 0x6C, 0x4F,
+    0x7E, 0x53, 0xF2, 0xE8, 0x10, 0x00, 0xB1, 0x19
+};
+// Characteristic: 19B10011-E8F2-537E-4F6C-D104768A1214
+const uint8_t UUID128_CHR[] = {
+    0x14, 0x12, 0x8A, 0x76, 0x04, 0xD1, 0x6C, 0x4F,
+    0x7E, 0x53, 0xF2, 0xE8, 0x11, 0x00, 0xB1, 0x19
+};
+
+BLEService        vbtService = BLEService(UUID128_SVC);
+BLECharacteristic vbtCharacteristic = BLECharacteristic(UUID128_CHR);
 Madgwick          filter;
 
 float velocity = 0.0;
@@ -44,7 +58,7 @@ void setup() {
   pinMode(D3, OUTPUT); digitalWrite(D3, HIGH);
   delay(500);
 
-  Serial.println("--- VBT Device 6DOF Fusion Ver ---");
+  Serial.println("--- VeloBar 6DOF Fusion Ver ---");
 
   // --- Watchdog Timer (WDT) 設定 ---
   // 5秒間プログラムが止まったら自動的にリセットをかけます
@@ -71,7 +85,7 @@ void setup() {
   Bluefruit.configPrphBandwidth(BANDWIDTH_HIGH);
   Bluefruit.begin();
   Bluefruit.setTxPower(4); 
-  Bluefruit.setName("VBT_Device");
+  Bluefruit.setName("VeloBar"); // Naming Updated!
   
   Bluefruit.Periph.setConnectCallback(connect_callback);
   Bluefruit.Periph.setDisconnectCallback(disconnect_callback);

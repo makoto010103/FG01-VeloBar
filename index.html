@@ -527,8 +527,9 @@
             let graph = new LiveGraph('vbtCanvas');
             const toneGen = new ToneGenerator(); // インスタンス作成
 
-            const SERVICE_UUID = '0000180c-0000-1000-8000-00805f9b34fb';
-            const CHARACTERISTIC_UUID = '00002a6e-0000-1000-8000-00805f9b34fb';
+            // Custom 128-bit UUIDs (Must match firmware)
+            const SERVICE_UUID = '19b10010-e8f2-537e-4f6c-d104768a1214';
+            const CHARACTERISTIC_UUID = '19b10011-e8f2-537e-4f6c-d104768a1214';
 
             const connectBtn = document.getElementById('connect-btn');
             const velDisplay = document.getElementById('velocity');
