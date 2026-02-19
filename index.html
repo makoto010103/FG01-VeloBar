@@ -419,11 +419,17 @@
         <!-- Session Setup -->
         <div class="session-setup"
             style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 12px; width: 100%;">
-            <input type="text" id="exercise-name" placeholder="種目名 (例: SQ)" class="mode-select"
-                style="width: 100%; box-sizing: border-box;">
+            <select id="exercise-name" class="mode-select" style="width: 100%; box-sizing: border-box;">
+                <option value="SQ">SQ (スクワット)</option>
+                <option value="DL">DL (デッドリフト)</option>
+                <option value="BP">BP (ベンチプレス)</option>
+                <option value="CL">CL (クリーン)</option>
+                <option value="Other">その他</option>
+            </select>
             <div style="display: flex; align-items: center; gap: 4px;">
-                <input type="number" id="weight-input" placeholder="kg" class="mode-select"
-                    style="width: 100%; box-sizing: border-box;">
+                <select id="weight-input" class="mode-select" style="width: 100%; box-sizing: border-box;">
+                    <!-- Populated by JS -->
+                </select>
                 <span style="font-size: 0.8rem; color: var(--text-dim);">kg</span>
             </div>
         </div>
@@ -813,6 +819,23 @@
         }
 
         // v3.1 Data Management
+        // Populate Weight Options (50-150, step 5)
+        const weightSelect = document.getElementById('weight-input');
+        for (let w = 50; w <= 150; w += 5) {
+            const opt = document.createElement('option');
+            opt.value = w;
+            opt.textContent = w;
+            weightSelect.appendChild(opt);
+        }
+
+        // Duration Tuning
+        // ユーザー要望: 0.3くらいでいいよ -> 300ms
+        const MIN_DURATION_MS = 300;
+
+        // v3.0 Parameters - Adjusted for Sensitivity
+        const START_THRESHOLD = 0.15;
+        const END_THRESHOLD = 0.12;
+
         window.adjustRep = function (delta) {
             repCountInSet += delta;
             if (repCountInSet < 0) repCountInSet = 0;
@@ -908,7 +931,8 @@
             // Params
             const LOCKOUT_MS = 250;
             // ユーザー要望: 判定が短くてカウントされない -> さらに短縮 0.25s
-            const MIN_DURATION_MS = 250;
+            // ユーザー要望再修正: 0.3くらいでいいよ -> 300ms
+            const MIN_DURATION_MS = 300;
 
             // v3.0 Parameters
             const START_THRESHOLD = 0.15; // Easier to start
@@ -936,6 +960,16 @@
                 // Preview sound
                 toneGen.playSuccess();
             });
+
+            // Populate Weight Select (50-150 step 5)
+            const weightInput = document.getElementById('weight-input');
+            for (let w = 50; w <= 150; w += 5) {
+                const opt = document.createElement('option');
+                opt.value = w;
+                opt.textContent = w;
+                if (w === 100) opt.selected = true; // Default
+                weightInput.appendChild(opt);
+            }
 
             // Stillness Check Loop (1Hz)
             setInterval(() => {
