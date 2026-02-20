@@ -856,23 +856,24 @@
             const exercise = document.getElementById('exercise-name').value || "NoName";
             const load = document.getElementById('weight-input').value || "0";
 
-            // Generate CSV Content
-            let csv = "Exercise,Weight(kg),Time,Peak(m/s),Fatigue(%)\n";
-
-            // Use logBody content for current session or logData array? 
-            // logData is not strictly coupled with "Current Set".
-            // Let's use the visible logBody for WYSIWYG or better, the logData array if we kept it synced.
-            // We need to ensure logData is populated.
-            // In v3.0 code `logData` was defined in `window.addEventListener` scope but not exposed.
-            // We need to parse the table or expose logData.
-            // Simplest: Parse the table rows.
-
-            const rows = document.querySelectorAll('#log-body tr');
-            if (rows.length === 0) {
-                alert("データがありません");
+            // Export raw recording buffer (all data points during REC)
+            if (rawLogBuffer.length > 0) {
+                let csv = "Exercise,Weight(kg),Time,Velocity(m/s)\n";
+                rawLogBuffer.forEach(entry => {
+                    csv += `${exercise},${load},${entry.time},${entry.velocity.toFixed(3)}\n`;
+                });
+                clipboard(csv);
                 return;
             }
 
+            // Fallback: export rep log table if no raw data
+            const rows = document.querySelectorAll('#log-body tr');
+            if (rows.length === 0) {
+                alert("データがありません。\nRECボタンで記録してからコピーしてください。");
+                return;
+            }
+
+            let csv = "Exercise,Weight(kg),Time,Peak(m/s),Fatigue(%)\n";
             rows.forEach(row => {
                 const cols = row.querySelectorAll('td');
                 const time = cols[0].innerText;
@@ -880,43 +881,37 @@
                 const fat = cols[3].innerText.replace('%', '');
                 csv += `${exercise},${load},${time},${peak},${fat}\n`;
             });
+            clipboard(csv);
+        };
 
-            // Clipboard API
+        function clipboard(csv) {
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(csv).then(() => {
                     alert("クリップボードにコピーしました！\nメモ帳などに貼り付けてください。");
                 }).catch(err => {
-                    console.error('Async: Could not copy text: ', err);
                     fallbackCopyTextToClipboard(csv);
                 });
             } else {
                 fallbackCopyTextToClipboard(csv);
             }
-        };
+        }
 
         function fallbackCopyTextToClipboard(text) {
             var textArea = document.createElement("textarea");
             textArea.value = text;
-
-            // Avoid scrolling to bottom
             textArea.style.top = "0";
             textArea.style.left = "0";
             textArea.style.position = "fixed";
-
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-
             try {
                 var successful = document.execCommand('copy');
-                var msg = successful ? 'successful' : 'unsuccessful';
                 if (successful) alert("クリップボードにコピーしました！(Legacy)");
                 else alert("コピーに失敗しました。手動でコピーしてください。");
             } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
                 alert("コピー機能が制限されています。");
             }
-
             document.body.removeChild(textArea);
         }
 
@@ -1046,7 +1041,10 @@
 
                         // RAW Record
                         if (isRawRecording) {
-                            // ... (omitted for brevity, can re-add if needed or use simplified)
+                            rawLogBuffer.push({
+                                time: new Date().toISOString(),
+                                velocity: currentVel
+                            });
                         }
 
                         // --- Rep Detection Logic ---
