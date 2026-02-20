@@ -568,8 +568,8 @@
                 }
                 ctx.stroke();
 
-                // Center Line
-                ctx.strokeStyle = '#00f3ff';
+                // Center Line (Make it DISTINCT from data)
+                ctx.strokeStyle = '#475569'; // Dim Gray Blue
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(0, height / 2);
@@ -579,8 +579,15 @@
                 // Data Plot
                 if (this.data.length < 2) return;
 
-                ctx.strokeStyle = '#00f3ff';
+                ctx.strokeStyle = '#00f3ff'; // Bright Cyan for Data
                 ctx.lineWidth = 3;
+                // Revert Deadzone Logic (User Request)
+                // But make it slightly more lenient for visibility?
+                // "0.003" is serial. "0.01" filter.
+                // If user shakes it, it should exceed 0.01 easily unless broken.
+                // User says "0.003" in SERIAL. That is TINY. Usually stationary noise.
+                // If the user moves it, it should jump to >0.1.
+
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = '#00f3ff';
                 ctx.lineCap = 'round';
@@ -1003,15 +1010,24 @@
                     connectBtn.innerHTML = "<span>✅</span> Linked";
                     connectBtn.disabled = true;
 
+
+                    let rxCount = 0; // Data Counter
+
                     characteristic.addEventListener('characteristicvaluechanged', (event) => {
                         const raw = event.target.value;
                         const velocity = raw.getFloat32(0, true);
                         let currentVel = Number(velocity.toFixed(3));
                         if (isNaN(currentVel)) return;
 
-                        // Deadzone (Disabled for debugging)
-                        // if (Math.abs(currentVel) < 0.01) currentVel = 0.0;
-                        // if (currentVel < 0) currentVel = 0.0; // Allow negative for checking graph
+                        // RX Counter
+                        rxCount++;
+                        if (rxCount % 50 === 0) { // Approx 1s (50Hz)
+                            setLog(`RX: ${rxCount}`);
+                        }
+
+                        // Deadzone (0.01) - Keep filter on as requested
+                        if (Math.abs(currentVel) < 0.01) currentVel = 0.0;
+                        if (currentVel < 0) currentVel = 0.0; // Suppress negative
 
                         // Update Graph & Display
                         graph.addPoint(currentVel);
