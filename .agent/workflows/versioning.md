@@ -18,5 +18,6 @@ description: VeloBarのバージョン管理ルール
    - ヘッダーの `<h1>VeloBar <span ...>vX.Y.Z</span></h1>` (index.html 455行目付近)
 3. gitコミットメッセージにバージョン番号を含める: `vX.Y.Z: 変更内容`
 4. 複数の小さい変更をまとめてpushする場合は、1つのパッチバージョンアップでOK
+5. **コード変更後は必ず `git add . && git commit && git push` を実行する**（GitHub Pagesにデプロイされているため、pushしないと反映されない）
 
-## 現在のバージョン: v3.2.0
+## 現在のバージョン: v3.2.1

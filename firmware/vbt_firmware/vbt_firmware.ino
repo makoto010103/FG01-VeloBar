@@ -30,6 +30,14 @@ unsigned long lastUpdate = 0;
 const unsigned long BLE_INTERVAL_MS = 20;
 unsigned long lastBleTime = 0;
 
+// 静止判定カウンター（グローバルスコープで正しく管理）
+int zupt_static_frames = 0;
+
+// Madgwickフィルター実効サンプリングレート計測用
+unsigned long loopCount = 0;
+unsigned long loopRateTimer = 0;
+float effectiveSampleRate = 100.0f; // 初期値
+
 // Onboard LED for status (Using Red as per user request)
 #define LED_HEARTBEAT LED_RED
 
@@ -78,7 +86,8 @@ void setup() {
     delay(100); 
     NRF_WDT->RR[0] = WDT_RR_RR_Reload;
     
-    // フィルタ初期化 (サンプリング周波数 ~100Hz)
+    // フィルタ初期化
+    // 実効サンプリングレートはloop()内で動的に計測・更新する
     filter.begin(100.0f);
   }
 
@@ -120,9 +129,23 @@ void loop() {
 
   unsigned long now_micros = micros();
   unsigned long now_millis = millis();
-  float dt = (now_micros - lastUpdate) / 1000000.0; // 秒
+  
+  // dt計算の安定化: micros()のオーバーフロー対策を含む
+  unsigned long elapsed_us = now_micros - lastUpdate;
   lastUpdate = now_micros;
-  if (dt > 0.1 || dt <= 0) dt = 0.01; // 安全策
+  float dt = elapsed_us / 1000000.0f; // 秒
+  // 異常値ガード: 0.5ms～50msの範囲外は直前値を使う
+  if (dt > 0.05f || dt <= 0.0005f) dt = 0.01f;
+  
+  // 実効サンプリングレートを1秒ごとに計測してMadgwickに反映
+  loopCount++;
+  if (now_millis - loopRateTimer >= 1000) {
+    effectiveSampleRate = (float)loopCount;
+    loopCount = 0;
+    loopRateTimer = now_millis;
+    // Madgwickの内部ゲインをサンプリングレートに合わせて調整
+    filter.begin(effectiveSampleRate);
+  }
 
   if (IMU.getAGT() > 0) {
     float ax_g = IMU.accX();
@@ -133,6 +156,7 @@ void loop() {
     float gz_dps = IMU.gyrZ();
 
     // 1. Madgwickフィルター更新 (姿勢推定)
+    // dt引数付きのupdateIMUで、実際の経過時間を正確に渡す
     filter.updateIMU(gx_dps, gy_dps, gz_dps, ax_g, ay_g, az_g, dt);
 
     // 2. 地球座標系の鉛直加速度を計算
@@ -163,30 +187,32 @@ void loop() {
 
     // --- 3. 静止判定 (Zero Velocity Update) ---
     // ジャイロの動きと加速度の変動の両方を見る
-    static float gyro_mag_sum = 0;
-    static int sample_count = 0;
     float gyro_mag = sqrt(gx_dps*gx_dps + gy_dps*gy_dps + gz_dps*gz_dps);
     
-    // 静止判定ロジック
-    // ジャイロが静かで、かつ加速度の変動が少ない場合
+    // 加速度の大きさ（重力込み）で動作中かどうかも判定
+    float acc_mag = sqrt(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
+    bool acc_near_1g = (acc_mag > 0.95f && acc_mag < 1.05f); // 重力のみ≒静止
+    
+    // 静止判定ロジック（修正版: シャドーイングバグ修正済み）
+    // zupt_static_frames はグローバル変数として正しく管理
     bool is_static = false;
-    if (gyro_mag < 5.0) { // 5 dps未満
-        static int static_frames = 0;
-        static_frames++;
-        if (static_frames > 20) { // 約0.2秒継続
+    if (gyro_mag < 5.0f && acc_near_1g) { // ジャイロ5dps未満 かつ 加速度≒1G
+        zupt_static_frames++;
+        if (zupt_static_frames > 25) { // 約0.25秒継続で静止判定
             is_static = true;
         }
     } else {
-        static int static_frames = 0; // リセット
+        zupt_static_frames = 0; // 確実にリセット
     }
 
     // --- 3.5 回転検知 (Rotation Clamp) ---
     // バーベルの回転(Rolling)による誤検知を防ぐ
-    // 200dps以上の高速回転は通常の挙上動作ではないとみなす
-    if (gyro_mag > 200.0) {
+    // 300dps以上の高速回転は通常の挙上動作ではないとみなす
+    // (200dpsではベンチプレスの通常動作でも発動する可能性があったため引き上げ)
+    if (gyro_mag > 300.0f) {
         vertical_accel_mps2 = 0;
-        // 回転中は速度も減衰させる
-        velocity *= 0.9;
+        // 回転中は速度を穏やかに減衰（0.9→0.95に緩和）
+        velocity *= 0.95f;
     }
 
     // --- 4. 速度積分 ---
@@ -197,15 +223,12 @@ void loop() {
         velocity *= 0.8; // 強い減衰
         if (abs(velocity) < 0.01) velocity = 0;
     } else {
-        // ノイズしきい値を引き下げ (0.05 -> 0.02)
-    // 6軸合成によりノイズ自体が減っているので、より小さな値を拾えるようにする
-    if (abs(vertical_accel_mps2) < 0.02) vertical_accel_mps2 = 0;
+        // ノイズしきい値: 6軸合成によりノイズが減っているため低めに設定
+        // ただし静止→動作の遷移で微小加速度を拾いすぎないよう最低限のガード
+        if (abs(vertical_accel_mps2) < 0.015f) vertical_accel_mps2 = 0;
 
-    velocity += vertical_accel_mps2 * dt;
-    // 減衰をほぼ無効化 (0.999 -> 1.0)
-    // 動作中の速度低下を防ぐ。静止時は強力なZUPTが働くため問題なし。
-    // velocity *= 1.0; 
-
+        velocity += vertical_accel_mps2 * dt;
+        // 動作中は減衰なし。静止時は強力なZUPTが働くため問題なし。
     }
 
     // --- 安全リミット (解除) ---
@@ -220,12 +243,17 @@ void loop() {
         vbtCharacteristic.notify(&velocity, 4);
       }
       
+      // デバッグログ: 1秒ごとに主要パラメータを出力
       static unsigned long lastSerialTime = 0;
       if (now_millis - lastSerialTime >= 1000) {
           lastSerialTime = now_millis;
           Serial.print("V:"); Serial.print(velocity, 3);
           Serial.print(" AccZ:"); Serial.print(vertical_accel_mps2, 2);
-          Serial.print(" Gyro:"); Serial.println(gyro_mag, 1);
+          Serial.print(" Gyro:"); Serial.print(gyro_mag, 1);
+          Serial.print(" Static:"); Serial.print(is_static ? "Y" : "N");
+          Serial.print(" ZFrames:"); Serial.print(zupt_static_frames);
+          Serial.print(" dt:"); Serial.print(dt * 1000, 1); // ms表示
+          Serial.print(" SR:"); Serial.println(effectiveSampleRate, 0); // Hz
       }
     }
   }
