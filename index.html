@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.2.1</title>
+    <title>VeloBar v3.2.2</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -452,7 +452,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.1</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.2</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -1054,10 +1054,10 @@
             let lastMotionTime = Date.now();
 
             // Params
-            const LOCKOUT_MS = 250;
-            // ユーザー要望: 判定が短くてカウントされない -> さらに短縮 0.25s
-            // ユーザー要望再修正: 0.3くらいでいいよ -> 300ms
-            const MIN_DURATION_MS = 300;
+            // 不感時間（デッドタイム）: 挙上後1.2秒間は次のレップをカウントしない
+            const LOCKOUT_MS = 1200;
+            // 最小継続時間: 0.35秒以上動き続けていない場合はノイズとみなす
+            const MIN_DURATION_MS = 350;
 
             // v3.0 Parameters
             const START_THRESHOLD = 0.15; // Easier to start
