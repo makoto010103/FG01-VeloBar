@@ -1144,7 +1144,7 @@
                             // End of Rep Logic
                             const duration = now - moveStartTime;
 
-                            if (currentPeak > 0.15 && duration > MIN_DURATION_MS) {
+                            if (currentPeak > 0.50 && duration > MIN_DURATION_MS) {
                                 // Rep Validated
                                 repCountInSet++;
                                 setRepData.push(currentPeak);
@@ -1184,13 +1184,12 @@
                                     hideAlert();
                                 }
 
-                                // B. Critical Drop (+10% worse than PREVIOUS rep)
+                                // B. Critical Drop: Prev rep vs current (only after rep 3+)
                                 let isCriticalDrop = false;
-                                if (lastRepPeakVelocity !== null) {
-                                    // e.g. Prev=1.0, Current=0.85 -> Drop 15%.
-                                    // Logic: Current < Prev * 0.9 (10% drop absolute)
-                                    // Use simple ratio check for "Sudden Drop"
-                                    if (currentPeak < lastRepPeakVelocity * 0.9) {
+                                if (repCountInSet >= 3 && setBestVelocity > 0) {
+                                    // Compare this rep to the best velocity (locked after rep 2)
+                                    // Critical drop = more than threshold+15% below best
+                                    if (currentPeak < setBestVelocity * (1 - (threshold / 100) - 0.15)) {
                                         isCriticalDrop = true;
                                     }
                                 }
