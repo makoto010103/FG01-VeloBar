@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.2.4</title>
+    <title>VeloBar v3.2.6</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -452,7 +452,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.4</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.7</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -576,9 +576,9 @@
                 this.canvas = document.getElementById(canvasId);
                 this.ctx = this.canvas.getContext('2d');
                 this.data = [];
-                // 50Hz * 12秒 = 600点 (波形が見やすい長さに調整)
-                this.maxPoints = 600;
-                this.yLimit = 2; // ±2m/s
+                // 50Hz * 8秒 = 400点 (波形の幅を広げる)
+                this.maxPoints = 400;
+                this.yLimit = 3.0; // 0〜3m/s (VBTの主要レンジ)
 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
@@ -607,22 +607,19 @@
                 ctx.strokeStyle = '#1e293b'; // Dark blue grid
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-
-                const step = this.yLimit <= 5 ? 1 : 5;
-
-                for (let i = -this.yLimit; i <= this.yLimit; i += step) {
-                    let y = height / 2 - (i / this.yLimit) * (height / 2);
+                for (let i = 0; i <= this.yLimit; i += 1) {
+                    let y = height - (i / this.yLimit) * height;
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
                 }
                 ctx.stroke();
 
-                // Center Line (Make it DISTINCT from data)
-                ctx.strokeStyle = '#475569'; // Dim Gray Blue
+                // Baseline (0 m/s)
+                ctx.strokeStyle = '#475569';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(0, height / 2);
-                ctx.lineTo(width, height / 2);
+                ctx.moveTo(0, height - 2); // Slightly offset for visibility
+                ctx.lineTo(width, height - 2);
                 ctx.stroke();
 
                 // Data Plot
@@ -645,8 +642,8 @@
 
                 for (let i = 0; i < this.data.length; i++) {
                     let x = (i / (this.maxPoints - 1)) * width;
-                    let plotVal = Math.max(-this.yLimit, Math.min(this.yLimit, this.data[i]));
-                    let y = height / 2 - (plotVal / this.yLimit) * (height / 2);
+                    let plotVal = Math.max(0, Math.min(this.yLimit, this.data[i]));
+                    let y = height - (plotVal / this.yLimit) * height;
 
                     if (i === 0) ctx.moveTo(x, y);
                     else ctx.lineTo(x, y);
@@ -856,7 +853,7 @@
 
         // Per-Exercise Velocity Thresholds
         const EXERCISE_THRESHOLDS = {
-            'SQ': { minPeak: 0.35, maxVelocity: 3.0 },  // スクワット
+            'SQ': { minPeak: 0.25, maxVelocity: 3.0 },  // スクワット
             'DL': { minPeak: 0.30, maxVelocity: 2.5 },  // デッドリフト
             'BP': { minPeak: 0.25, maxVelocity: 2.5 },  // ベンチプレス（遅い種目）
             'CL': { minPeak: 0.50, maxVelocity: 3.5 },  // クリーン（爆発的）
@@ -958,8 +955,8 @@
         const MIN_DURATION_MS = 300;
 
         // v3.0 Parameters - Adjusted for Sensitivity
-        const START_THRESHOLD = 0.15;
-        const END_THRESHOLD = 0.12;
+        const START_THRESHOLD = 0.12;
+        const END_THRESHOLD = 0.05; // 確実に静止を捉えるまで継続させる
 
         window.adjustRep = function (delta) {
             repCountInSet += delta;
@@ -1049,19 +1046,20 @@
             let isMoving = false;
             let moveStartTime = 0;
             let lastRepTime = 0; // For Lockout
+            let belowThresholdStartTime = 0; // 終了判定の待機用
 
             // Stillness Detection for Reset
             let lastMotionTime = Date.now();
 
             // Params
-            // 不感時間（デッドタイム）: 挙上後1.5秒間は次のレップ判定を開始しない（重要）
-            const LOCKOUT_MS = 1500;
+            // 不感時間（デッドタイム）: 0.4秒に短縮（誤判定からの復旧を早める）
+            const LOCKOUT_MS = 400;
             // 最小継続時間: 0.35秒以上動き続けていない場合はノイズとみなす
             const MIN_DURATION_MS = 350;
 
             // v3.0 Parameters
-            const START_THRESHOLD = 0.15; // Easier to start
-            const END_THRESHOLD = 0.12;   // Easier to end (reset)
+            const START_THRESHOLD = 0.12; // Easier to start
+            const END_THRESHOLD = 0.05;   // Easier to end (reset)
             const toneGen = new ToneGenerator();
 
             const SERVICE_UUID = '19b10010-e8f2-537e-4f6c-d104768a1214';
@@ -1100,8 +1098,9 @@
             setInterval(() => {
                 const now = Date.now();
                 // If inactive (>5s) AND isMoving=false AND has reps > 0
-                if (!isMoving && repCountInSet > 0 && (now - lastMotionTime > 5000)) {
-                    setLog("Auto Reset: Stillness Detected");
+                // 静止判定: 30秒間動きがない場合にリセット（高重量セット間のインターバルを考慮）
+                if (!isMoving && repCountInSet > 0 && (now - lastMotionTime > 30000)) {
+                    setLog("Auto Reset: Stillness Detected (30s)");
                     resetSetState();
                 }
             }, 1000);
@@ -1181,127 +1180,126 @@
                                     currentPeak = currentVel;
                                 }
                             }
+                            // 閾値を超えている間は終了カウンターをリセット
+                            belowThresholdStartTime = 0;
                         } else if (isMoving && currentVel < END_THRESHOLD) {
-                            // End of Rep Logic
-                            isMoving = false; // Reset first
-                            lastRepTime = now; // IMPORTANT: ここで不感時間のカウントを開始
+                            // 終了判定の遅延 (100ms連続で閾値を下回った場合のみ終了とみなす)
+                            if (belowThresholdStartTime === 0) {
+                                belowThresholdStartTime = now;
+                            }
 
-                            const exThresh = getExerciseThresholds();
-                            if (currentPeak > exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
-                                // Rep Validated
-                                repCountInSet++;
-                                setRepData.push(currentPeak);
-                                document.getElementById('rep-count').innerText = repCountInSet;
-
-                                // --- v3.0 JUDGMENT ENGINE ---
-
-                                // 1. Best Velocity Lock Logic
-                                if (repCountInSet <= 2) {
-                                    if (currentPeak > setBestVelocity) {
-                                        setBestVelocity = currentPeak;
-                                        document.getElementById('set-best').innerText = setBestVelocity.toFixed(2);
-                                    }
-                                } else {
-                                    // Rep 3+: Locked. Do not update Best.
-                                }
-
-                                // 2. Fatigue Calculation
-                                let fatigue = 0;
-                                if (setBestVelocity > 0) {
-                                    fatigue = ((setBestVelocity - currentPeak) / setBestVelocity) * 100;
-                                }
-                                fatigue = Math.max(0, fatigue); // No negative fatigue
-
-                                const fatEl = document.getElementById('fatigue-val');
-                                fatEl.innerText = fatigue.toFixed(0) + "%";
-
-                                // 3. Judgment Logic (Priority Order)
-                                let status = 'good';
-                                let stopReason = "";
-                                const threshold = MODES[currentMode].threshold;
-
-                                // A. Power Zone Warning (<0.50m/s in Power Mode)
-                                if (currentMode === 'POWER' && setBestVelocity < 0.50) {
-                                    showAlert("POWER ZONE OUT");
-                                } else {
-                                    hideAlert();
-                                }
-
-                                // B. Critical Drop: Prev rep vs current (only after rep 3+)
-                                let isCriticalDrop = false;
-                                if (repCountInSet >= 3 && setBestVelocity > 0) {
-                                    // Compare this rep to the best velocity (locked after rep 2)
-                                    // Critical drop = more than threshold+15% below best
-                                    if (currentPeak < setBestVelocity * (1 - (threshold / 100) - 0.15)) {
-                                        isCriticalDrop = true;
-                                    }
-                                }
-
-                                // C. Determine Status
-                                if (isCriticalDrop) {
-                                    status = 'stop';
-                                    stopReason = "CRITICAL VELOCITY DROP";
-                                } else if (fatigue >= threshold + 5) {
-                                    // Abs Limit + 5% -> Immediate Stop
-                                    status = 'stop';
-                                    stopReason = "FATIGUE LIMIT EXCEEDED";
-                                } else if (fatigue >= threshold) {
-                                    // Threshold Reached
-                                    // Check Consecutive Warning Logic?
-                                    // Current Design: Threshold reached = Stop check.
-                                    // Plan: "Consecutive Warning (Orange) -> Stop" OR "Threshold -> Stop"?
-                                    // User said: "Consecutive 2 reps over Threshold -> STOP"
-                                    // So first time over threshold is Warning (Orange/Red border?), second is stop.
-
-                                    // Let's simplify:
-                                    // If > Threshold: Count as 'Over'.
-                                    consecutiveWarningCount++;
-                                    if (consecutiveWarningCount >= 2) {
-                                        status = 'stop';
-                                        stopReason = "FATIGUE THRESHOLD (x2)";
-                                    } else {
-                                        status = 'warning'; // First time over threshold
-                                    }
-                                } else if (fatigue >= 15) {
-                                    status = 'warning';
-                                    consecutiveWarningCount = 0; // Reset count if we recover?
-                                } else {
-                                    status = 'good';
-                                    consecutiveWarningCount = 0;
-                                }
-
-                                // D. Apply Status
-                                updateStatusColor(status);
-
-                                if (status === 'stop') {
-                                    toneGen.playStop();
-                                    showSummary(stopReason);
-                                } else if (status === 'warning') {
-                                    toneGen.playWarning();
-                                } else {
-                                    toneGen.playSuccess();
-                                }
-
-                                // Update Previous Peak
-                                lastRepPeakVelocity = currentPeak;
+                            if (now - belowThresholdStartTime > 100) {
+                                // End of Rep Logic
+                                isMoving = false;
+                                belowThresholdStartTime = 0;
                                 lastRepTime = now;
 
-                                // Log Update
-                                const d = new Date();
-                                const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
-                                const changeColor = status === 'good' ? 'var(--good)' : (status === 'warning' ? 'var(--warning)' : 'var(--stop)');
+                                const duration = now - moveStartTime;
+                                const exThresh = getExerciseThresholds();
+                                if (currentPeak > exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
+                                    // Rep Validated
+                                    repCountInSet++;
+                                    setRepData.push(currentPeak);
+                                    document.getElementById('rep-count').innerText = repCountInSet;
+                                    setLog(`✅ Rep ${repCountInSet}: ${currentPeak.toFixed(2)} m/s (${duration}ms)`, 'var(--good)');
 
-                                logBody.insertAdjacentHTML('afterbegin',
-                                    `<tr>
+                                    // --- v3.0 JUDGMENT ENGINE ---
+                                    // 1. Best Velocity Lock Logic
+                                    if (repCountInSet <= 2) {
+                                        if (currentPeak > setBestVelocity) {
+                                            setBestVelocity = currentPeak;
+                                            document.getElementById('set-best').innerText = setBestVelocity.toFixed(2);
+                                        }
+                                    }
+
+                                    // 2. Fatigue Calculation
+                                    let fatigue = 0;
+                                    if (setBestVelocity > 0) {
+                                        fatigue = ((setBestVelocity - currentPeak) / setBestVelocity) * 100;
+                                    }
+                                    fatigue = Math.max(0, fatigue);
+
+                                    const fatEl = document.getElementById('fatigue-val');
+                                    fatEl.innerText = fatigue.toFixed(0) + "%";
+
+                                    // 3. Judgment Logic
+                                    let status = 'good';
+                                    let stopReason = "";
+                                    const threshold = MODES[currentMode].threshold;
+
+                                    if (currentMode === 'POWER' && setBestVelocity < 0.50) {
+                                        showAlert("POWER ZONE OUT");
+                                    } else {
+                                        hideAlert();
+                                    }
+
+                                    let isCriticalDrop = false;
+                                    if (repCountInSet >= 3 && setBestVelocity > 0) {
+                                        if (currentPeak < setBestVelocity * (1 - (threshold / 100) - 0.15)) {
+                                            isCriticalDrop = true;
+                                        }
+                                    }
+
+                                    if (isCriticalDrop) {
+                                        status = 'stop';
+                                        stopReason = "CRITICAL VELOCITY DROP";
+                                    } else if (fatigue >= threshold + 5) {
+                                        status = 'stop';
+                                        stopReason = "FATIGUE LIMIT EXCEEDED";
+                                    } else if (fatigue >= threshold) {
+                                        consecutiveWarningCount++;
+                                        if (consecutiveWarningCount >= 2) {
+                                            status = 'stop';
+                                            stopReason = "FATIGUE THRESHOLD (x2)";
+                                        } else {
+                                            status = 'warning';
+                                        }
+                                    } else if (fatigue >= 15) {
+                                        status = 'warning';
+                                        consecutiveWarningCount = 0;
+                                    } else {
+                                        status = 'good';
+                                        consecutiveWarningCount = 0;
+                                    }
+
+                                    updateStatusColor(status);
+
+                                    if (status === 'stop') {
+                                        toneGen.playStop();
+                                        showSummary(stopReason);
+                                    } else if (status === 'warning') {
+                                        toneGen.playWarning();
+                                    } else {
+                                        toneGen.playSuccess();
+                                    }
+
+                                    lastRepPeakVelocity = currentPeak;
+                                    lastRepTime = now;
+
+                                    const d = new Date();
+                                    const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+                                    const changeColor = status === 'good' ? 'var(--good)' : (status === 'warning' ? 'var(--warning)' : 'var(--stop)');
+
+                                    logBody.insertAdjacentHTML('afterbegin',
+                                        `<tr>
                                         <td>${timeStr}</td>
                                         <td>${currentPeak.toFixed(2)}</td>
                                         <td>-</td>
                                         <td style="color:${changeColor}">${fatigue.toFixed(1)}%</td>
                                     </tr>`
-                                );
+                                    );
 
+                                } else {
+                                    let reason = "";
+                                    if (currentPeak <= exThresh.minPeak) reason = `Peak too low (${currentPeak.toFixed(2)} < ${exThresh.minPeak})`;
+                                    else if (currentPeak >= exThresh.maxVelocity) reason = "Peak too high";
+                                    else if (duration <= MIN_DURATION_MS) reason = `Too short (${duration}ms < ${MIN_DURATION_MS}ms)`;
+                                    if (reason) setLog(`❌ ${reason}`, 'var(--text-dim)');
+                                }
                             }
-                            isMoving = false;
+                        } else if (isMoving) {
+                            // 速度がEND_THRESHOLD〜START_THRESHOLDの間: まだ動いている → 終了カウンターをリセット
+                            belowThresholdStartTime = 0;
                         }
                     });
                 } catch (error) {
