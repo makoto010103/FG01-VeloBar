@@ -926,6 +926,9 @@
         }
 
         window.addEventListener('load', () => {
+            // --- Graph Initialization (must be after DOM load) ---
+            const graph = new LiveGraph('vbtCanvas');
+
             let device, characteristic;
             let currentPeak = 0;
             let isMoving = false;
@@ -1025,8 +1028,9 @@
                             setLog(`RX: ${rxCount}, Raw: ${velocity.toFixed(3)}`);
                         }
 
-                        // Show ALL movement (Up or Down) as Positive Magnitude for Debugging
-                        currentVel = Math.abs(currentVel);
+                        // Deadzone & Positive-Only (挙上方向のみ)
+                        if (currentVel < 0) currentVel = 0.0;
+                        if (currentVel < 0.02) currentVel = 0.0;
 
                         // Update Graph & Display
                         graph.addPoint(currentVel);
