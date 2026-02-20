@@ -1209,7 +1209,7 @@
 
                                         // --- v3.0 JUDGMENT ENGINE ---
                                         // 1. Best Velocity Lock Logic
-                                        if (repCountInSet <= 2) {
+                                        if (repCountInSet <= 3) { // Rep 1〜3でベスト速度を更新（PAP効果を考慮）
                                             if (currentPeak > setBestVelocity) {
                                                 setBestVelocity = currentPeak;
                                                 document.getElementById('set-best').innerText = setBestVelocity.toFixed(2);
