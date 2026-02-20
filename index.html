@@ -854,6 +854,20 @@
 
         // --- v3.0 Main Logic ---
 
+        // Per-Exercise Velocity Thresholds
+        const EXERCISE_THRESHOLDS = {
+            'SQ': { minPeak: 0.35, maxVelocity: 3.0 },  // スクワット
+            'DL': { minPeak: 0.30, maxVelocity: 2.5 },  // デッドリフト
+            'BP': { minPeak: 0.25, maxVelocity: 2.5 },  // ベンチプレス（遅い種目）
+            'CL': { minPeak: 0.50, maxVelocity: 3.5 },  // クリーン（爆発的）
+            'Other': { minPeak: 0.30, maxVelocity: 3.5 },  // その他
+        };
+
+        function getExerciseThresholds() {
+            const ex = document.getElementById('exercise-name').value || 'Other';
+            return EXERCISE_THRESHOLDS[ex] || EXERCISE_THRESHOLDS['Other'];
+        }
+
         // State Variables
         let currentMode = 'POWER';
         let setBestVelocity = 0.0;
@@ -1171,8 +1185,8 @@
                             // End of Rep Logic
                             const duration = now - moveStartTime;
 
-                            const MAX_VELOCITY = 3.5; // Upper limit (covers Clean 2nd pull)
-                            if (currentPeak > 0.50 && currentPeak < MAX_VELOCITY && duration > MIN_DURATION_MS) {
+                            const exThresh = getExerciseThresholds();
+                            if (currentPeak > exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
                                 // Rep Validated
                                 repCountInSet++;
                                 setRepData.push(currentPeak);
