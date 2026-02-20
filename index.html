@@ -1025,11 +1025,8 @@
                             setLog(`RX: ${rxCount}, Raw: ${velocity.toFixed(3)}`);
                         }
 
-                        // Deadzone (0.01) - Keep filter on as requested
-                        if (Math.abs(currentVel) < 0.01) {
-                            currentVel = 0.0;
-                        }
-                        if (currentVel < 0) currentVel = 0.0; // Suppress negative
+                        // Show ALL movement (Up or Down) as Positive Magnitude for Debugging
+                        currentVel = Math.abs(currentVel);
 
                         // Update Graph & Display
                         graph.addPoint(currentVel);
