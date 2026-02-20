@@ -691,10 +691,29 @@
                 let count = 5;
                 numEl.innerText = count;
 
+                // Countdown beep function
+                function playCountdownBeep(isLast) {
+                    try {
+                        const actx = new (window.AudioContext || window.webkitAudioContext)();
+                        const osc = actx.createOscillator();
+                        const gain = actx.createGain();
+                        osc.connect(gain);
+                        gain.connect(actx.destination);
+                        osc.frequency.value = isLast ? 1200 : 800; // High pitch for "GO"
+                        gain.gain.setValueAtTime(0.3, actx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (isLast ? 0.5 : 0.15));
+                        osc.start(actx.currentTime);
+                        osc.stop(actx.currentTime + (isLast ? 0.5 : 0.15));
+                    } catch (e) { }
+                }
+
+                playCountdownBeep(false); // Beep at start (count=5)
+
                 const timer = setInterval(() => {
                     count--;
                     if (count <= 0) {
                         clearInterval(timer);
+                        playCountdownBeep(true); // High beep = GO!
                         overlay.classList.remove('active');
                         isCountingDown = false;
                         isRawRecording = true;
@@ -704,6 +723,7 @@
                         btn.disabled = false;
                     } else {
                         numEl.innerText = count;
+                        playCountdownBeep(false); // Normal beep each tick
                     }
                 }, 1000);
             } else {
