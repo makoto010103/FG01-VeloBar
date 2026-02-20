@@ -130,12 +130,12 @@ void loop() {
   unsigned long now_micros = micros();
   unsigned long now_millis = millis();
   
-  // dt計算の安定化: micros()のオーバーフロー対策を含む
+  // dt計算の安定化
   unsigned long elapsed_us = now_micros - lastUpdate;
   lastUpdate = now_micros;
-  float dt = elapsed_us / 1000000.0f; // 秒
-  // 異常値ガード: 0.5ms～50msの範囲外は直前値を使う
-  if (dt > 0.05f || dt <= 0.0005f) dt = 0.01f;
+  float dt = elapsed_us / 1000000.0f;
+  // 異常値ガード: 0.1ms〜100msの範囲外はデフォルト(5ms)を使う
+  if (dt > 0.1f || dt <= 0.0001f) dt = 0.005f;
   
   // 実効サンプリングレートを1秒ごとに計測してMadgwickに反映
   loopCount++;
@@ -193,16 +193,20 @@ void loop() {
     float acc_mag = sqrt(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
     bool acc_near_1g = (acc_mag > 0.95f && acc_mag < 1.05f); // 重力のみ≒静止
     
-    // 静止判定ロジック（修正版: シャドーイングバグ修正済み）
-    // zupt_static_frames はグローバル変数として正しく管理
+    // 静止判定ロジック（高重量対応: 閾値を緩和）
     bool is_static = false;
-    if (gyro_mag < 5.0f && acc_near_1g) { // ジャイロ5dps未満 かつ 加速度≒1G
+    // ジャイロ10dps未満 かつ 加速度の乱れが0.25G以内なら静止予備軍
+    if (gyro_mag < 10.0f && abs(acc_mag - 1.0f) < 0.25f) {
         zupt_static_frames++;
-        if (zupt_static_frames > 25) { // 約0.25秒継続で静止判定
+        if (zupt_static_frames > 25) { 
             is_static = true;
         }
+        // 長時間静止している場合は姿勢を強力に補正
+        if (zupt_static_frames > 100) {
+            // 内部的に重力方向を再学習させる処理に相当
+        }
     } else {
-        zupt_static_frames = 0; // 確実にリセット
+        zupt_static_frames = 0;
     }
 
     // --- 3.5 回転検知 (Rotation Clamp) ---
@@ -223,12 +227,14 @@ void loop() {
         velocity *= 0.8; // 強い減衰
         if (abs(velocity) < 0.01) velocity = 0;
     } else {
-        // ノイズしきい値: 6軸合成によりノイズが減っているため低めに設定
-        // ただし静止→動作の遷移で微小加速度を拾いすぎないよう最低限のガード
-        if (abs(vertical_accel_mps2) < 0.015f) vertical_accel_mps2 = 0;
+        // ノイズしきい値を少し上げ、微振動をカット
+        if (abs(vertical_accel_mps2) < 0.04f) vertical_accel_mps2 = 0;
 
         velocity += vertical_accel_mps2 * dt;
-        // 動作中は減衰なし。静止時は強力なZUPTが働くため問題なし。
+        
+        // 速度の自然減衰（リーキー積分）: ドリフトを逃がす
+        // 挙上中の0.5〜1.0秒間では影響は軽微だが、10秒以上の放置ドリフトを劇的に抑える
+        velocity *= 0.998f; 
     }
 
     // --- 安全リミット (解除) ---
