@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.2.3</title>
+    <title>VeloBar v3.2.4</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -452,7 +452,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.3</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.4</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -1054,8 +1054,8 @@
             let lastMotionTime = Date.now();
 
             // Params
-            // 不感時間（デッドタイム）: 挙上後1.2秒間は次のレップをカウントしない
-            const LOCKOUT_MS = 1200;
+            // 不感時間（デッドタイム）: 挙上後1.5秒間は次のレップ判定を開始しない（重要）
+            const LOCKOUT_MS = 1500;
             // 最小継続時間: 0.35秒以上動き続けていない場合はノイズとみなす
             const MIN_DURATION_MS = 350;
 
@@ -1183,7 +1183,8 @@
                             }
                         } else if (isMoving && currentVel < END_THRESHOLD) {
                             // End of Rep Logic
-                            const duration = now - moveStartTime;
+                            isMoving = false; // Reset first
+                            lastRepTime = now; // IMPORTANT: ここで不感時間のカウントを開始
 
                             const exThresh = getExerciseThresholds();
                             if (currentPeak > exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {

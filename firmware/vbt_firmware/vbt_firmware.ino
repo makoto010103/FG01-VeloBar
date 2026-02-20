@@ -227,14 +227,14 @@ void loop() {
         velocity *= 0.8; // 強い減衰
         if (abs(velocity) < 0.01) velocity = 0;
     } else {
-        // ノイズしきい値を少し上げ、微振動をカット
-        if (abs(vertical_accel_mps2) < 0.04f) vertical_accel_mps2 = 0;
+        // ノイズしきい値を引き上げ、高重量時の体の震えを完全にカット
+        if (abs(vertical_accel_mps2) < 0.06f) vertical_accel_mps2 = 0;
 
         velocity += vertical_accel_mps2 * dt;
         
-        // 速度の自然減衰（リーキー積分）: ドリフトを逃がす
-        // 挙上中の0.5〜1.0秒間では影響は軽微だが、10秒以上の放置ドリフトを劇的に抑える
-        velocity *= 0.998f; 
+        // 速度の自然減衰（リーキー積分）を強化: 
+        // 挙上直後の残留速度を速やかに0へ引き戻す
+        velocity *= 0.995f; 
     }
 
     // --- 安全リミット (解除) ---
