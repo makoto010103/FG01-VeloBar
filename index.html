@@ -1019,14 +1019,16 @@
                         let currentVel = Number(velocity.toFixed(3));
                         if (isNaN(currentVel)) return;
 
-                        // RX Counter
+                        // RX Counter + Debug Raw Value
                         rxCount++;
-                        if (rxCount % 50 === 0) { // Approx 1s (50Hz)
-                            setLog(`RX: ${rxCount}`);
+                        if (rxCount % 50 === 0) { // Approx 1s
+                            setLog(`RX: ${rxCount}, Raw: ${velocity.toFixed(3)}`);
                         }
 
                         // Deadzone (0.01) - Keep filter on as requested
-                        if (Math.abs(currentVel) < 0.01) currentVel = 0.0;
+                        if (Math.abs(currentVel) < 0.01) {
+                            currentVel = 0.0;
+                        }
                         if (currentVel < 0) currentVel = 0.0; // Suppress negative
 
                         // Update Graph & Display
