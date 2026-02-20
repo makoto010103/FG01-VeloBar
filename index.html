@@ -452,7 +452,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.8</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2.9</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -1052,8 +1052,8 @@
             let lastMotionTime = Date.now();
 
             // Params
-            // 不感時間: 1.2秒（挙上後のバウンスをブロック）
-            const LOCKOUT_MS = 1200;
+            // 不感時間: 1.0秒
+            const LOCKOUT_MS = 1000;
             // 最小継続時間: 0.35秒以上動き続けていない場合はノイズとみなす
             const MIN_DURATION_MS = 350;
 
@@ -1192,15 +1192,17 @@
                                 // End of Rep Logic
                                 isMoving = false;
                                 belowThresholdStartTime = 0;
-                                lastRepTime = now;
+                                // lastRepTime = now; // ここでは更新しない（バウンスに邪魔させないため）
 
                                 const duration = now - moveStartTime;
                                 const exThresh = getExerciseThresholds();
                                 if (currentPeak > exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
                                     // バウンスノイズフィルター: ベストの40%以下はノイズとみなす
-                                    if (setBestVelocity > 0 && repCountInSet >= 2 && currentPeak < setBestVelocity * 0.40) {
+                                    if (setBestVelocity > 0 && repCountInSet >= 1 && currentPeak < setBestVelocity * 0.40) {
                                         setLog(`⚠️ Bounce filtered: ${currentPeak.toFixed(2)} < 40% of best (${setBestVelocity.toFixed(2)})`, 'var(--text-dim)');
                                     } else {
+                                        // Valid Rep or legitimate attempt
+                                        lastRepTime = now; // 成功または正当なトライアルのみ不感時間を更新
                                         // Rep Validated
                                         repCountInSet++;
                                         setRepData.push(currentPeak);
