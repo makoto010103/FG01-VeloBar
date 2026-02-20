@@ -1009,9 +1009,9 @@
                         let currentVel = Number(velocity.toFixed(3));
                         if (isNaN(currentVel)) return;
 
-                        // Deadzone
-                        if (Math.abs(currentVel) < 0.02) currentVel = 0.0;
-                        if (currentVel < 0) currentVel = 0.0; // Only positive
+                        // Deadzone (Disabled for debugging)
+                        // if (Math.abs(currentVel) < 0.01) currentVel = 0.0;
+                        // if (currentVel < 0) currentVel = 0.0; // Allow negative for checking graph
 
                         // Update Graph & Display
                         graph.addPoint(currentVel);
