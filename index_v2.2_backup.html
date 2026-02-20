@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeloBar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050510;
+            --card-bg: rgba(10, 20, 35, 0.7);
+            --accent-cyan: #00f3ff;
+            --accent-pink: #ff00ff;
+            --text-main: #e0f2fe;
+            --text-dim: #64748b;
+            --grid-color: rgba(0, 243, 255, 0.05);
+        }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: var(--bg-color);
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* CRT Scanline effect */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+            /* Further Reduced */
+            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.05), transparent);
+            padding: 5px 10px;
+            /* Further Reduced */
+            border-top: 1px solid var(--accent-cyan);
+            border-bottom: 1px solid var(--accent-cyan);
+            text-shadow: 0 0 10px var(--accent-cyan);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            /* Further Reduced from 1.5rem */
+            letter-spacing: 2px;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 2px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.05);
+            text-align: center;
+            backdrop-filter: blur(4px);
+            position: relative;
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            right: -1px;
+            width: 8px;
+            height: 8px;
+            border-bottom: 2px solid var(--accent-cyan);
+            border-right: 2px solid var(--accent-cyan);
+        }
+
+        .velocity-display {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 7rem;
+            font-weight: 400;
+            color: var(--accent-cyan);
+            margin: 10px 0;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+        }
+
+        .unit {
+            font-size: 1rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .chart-container {
+            height: 200px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #ef4444;
+        }
+
+        .status-dot.connected {
+            background-color: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
+        }
+
+        button {
+            background-color: rgba(0, 243, 255, 0.05);
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+            padding: 14px 28px;
+            border-radius: 2px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background-color: var(--accent-cyan);
+            color: #000;
+            box-shadow: 0 0 15px var(--accent-cyan);
+        }
+
+        button:disabled {
+            border-color: #334155;
+            color: #475569;
+            background: transparent;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-table th {
+            color: var(--accent-pink);
+            border-bottom: 1px solid var(--accent-pink);
+            padding: 10px;
+            text-align: left;
+        }
+
+        .log-table td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            color: var(--text-main);
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .connection-log {
+            font-family: 'Share Tech Mono', monospace;
+            background: rgba(0, 0, 0, 0.4);
+            color: var(--accent-cyan);
+            text-align: left;
+            line-height: 1.5;
+            padding: 10px;
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            font-size: 0.8rem;
+        }
+
+        .csv-btn {
+            padding: 4px 12px;
+            font-size: 0.7rem;
+            border: 1px solid var(--accent-pink);
+            color: var(--accent-pink);
+            background: transparent;
+        }
+
+        .csv-btn:hover {
+            background: var(--accent-pink);
+            color: #fff;
+            box-shadow: 0 0 10px var(--accent-pink);
+        }
+
+        .raw-controls {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .record-btn {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+
+        .record-btn:hover {
+            background-color: #ef4444;
+            color: white;
+            box-shadow: 0 0 10px #ef4444;
+        }
+
+        .record-btn.recording {
+            animation: pulse-red 1s infinite;
+            background-color: #ef4444;
+            color: white;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="text-align: left; display: flex; align-items: baseline; gap: 10px;">
+                <h1 style="display: inline-block;">VeloBar <span
+                        style="font-size: 0.8em; color: var(--accent-pink);">v2.2</span></h1>
+                <div style="font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim);">KINETIC SYSTEM</div>
+            </div>
+            <div style="text-align: right;">
+                <span id="status-dot" class="status-dot"></span>
+                <span id="status-text" style="font-family: 'Share Tech Mono'; font-size: 0.7rem;">DISCONNECTED</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="unit">VELOCITY</div>
+            <div id="velocity" class="velocity-display">0.00</div>
+            <div class="unit">M/S</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div class="card" id="last-rep-card" style="margin-bottom: 0; transition: background-color 0.1s;">
+                <div class="unit">PEAK</div>
+                <div id="last-rep-max"
+                    style="font-family: 'Share Tech Mono'; font-size: 2.5rem; font-weight: 700; color: var(--accent-pink); text-shadow: 0 0 10px var(--accent-pink); line-height: 1;">
+                    0.00</div>
+                <div id="rep-change"
+                    style="font-family: 'Share Tech Mono'; font-size: 1rem; color: var(--text-dim); margin-top: 5px;">-
+                </div>
+                <div class="unit">M/S</div>
+            </div>
+            <div class="card" style="margin-bottom: 0;">
+                <div class="unit">REPS</div>
+                <div id="rep-count"
+                    style="font-family: 'Share Tech Mono'; font-size: 2.5rem; font-weight: 700; color: var(--accent-cyan); text-shadow: 0 0 10px var(--accent-cyan);">
+                    0</div>
+                <div class="unit">COUNT</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="chart-container">
+                <canvas id="vbtCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--accent-pink); font-size: 1rem;">DATA_LOG</h3>
+                <button class="csv-btn" onclick="exportCSV()">EXPORT CSV</button>
+            </div>
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>TIME</th>
+                        <th>PEAK (m/s)</th>
+                        <th>CHANGE</th>
+                    </tr>
+                </thead>
+                <tbody id="log-body">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" style="border: 1px dashed var(--text-dim);">
+            <h3 style="margin: 0; font-size: 1rem; color: var(--text-dim);">WAVEFORM_REC</h3>
+            <p style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 15px;">RAW DATA CAPTURE FOR ANALYSIS</p>
+            <div class="raw-controls">
+                <button id="record-btn" class="record-btn" onclick="toggleRawRecording()">REC START</button>
+                <button id="download-raw-btn" class="csv-btn" onclick="exportRawCSV()" disabled>DL RAW</button>
+            </div>
+            <div id="record-status"
+                style="font-family: 'Share Tech Mono'; font-size: 0.8rem; margin-top: 10px; color: var(--accent-cyan);">
+                DATA POINTS: 0</div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 1rem; color: var(--text-dim);">SYSTEM_CONSOLE</h3>
+                <button class="csv-btn" onclick="clearConsole()">CLEAR</button>
+            </div>
+            <div id="connection-log" class="connection-log"
+                style="height: 100px; overflow-y: auto; display: flex; flex-direction: column-reverse;">
+                <div>> SYSTEM READY</div>
+            </div>
+            <div class="controls">
+                <button id="connect-btn" style="width: 100%;">INITIALIZE LINK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 描画エンジン (ライブラリなし) ---
+        class LiveGraph {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.data = [];
+                // 50Hz * 12秒 = 600点 (波形が見やすい長さに調整)
+                this.maxPoints = 600;
+                this.yLimit = 2; // ±2m/s (ユーザー要望により変更)
+
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                this.canvas.width = this.canvas.clientWidth * window.devicePixelRatio;
+                this.canvas.height = this.canvas.clientHeight * window.devicePixelRatio;
+            }
+
+            addPoint(val) {
+                this.data.push(val);
+                if (this.data.length > this.maxPoints) {
+                    this.data.shift();
+                }
+                this.draw();
+            }
+
+            draw() {
+                const { width, height } = this.canvas;
+                const ctx = this.ctx;
+
+                ctx.clearRect(0, 0, width, height);
+
+                // Grid
+                ctx.strokeStyle = '#1e293b'; // Dark blue grid
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+
+                const step = this.yLimit <= 5 ? 1 : 5;
+
+                for (let i = -this.yLimit; i <= this.yLimit; i += step) {
+                    let y = height / 2 - (i / this.yLimit) * (height / 2);
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                    // Label
+                    ctx.fillStyle = '#475569';
+                    ctx.font = '16px Orbitron';
+                    ctx.fillText(i, 5, y - 5);
+                }
+                ctx.stroke();
+
+                // Center Line
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, height / 2);
+                ctx.lineTo(width, height / 2);
+                ctx.stroke();
+
+                // Data Plot
+                if (this.data.length < 2) return;
+
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00f3ff';
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+
+                for (let i = 0; i < this.data.length; i++) {
+                    let x = (i / (this.maxPoints - 1)) * width;
+                    let plotVal = Math.max(-this.yLimit, Math.min(this.yLimit, this.data[i]));
+                    let y = height / 2 - (plotVal / this.yLimit) * (height / 2);
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0; // Reset shadow
+            }
+        }
+
+        function setLog(msg, color = null) {
+            const logEl = document.getElementById('connection-log');
+            if (logEl) {
+                const line = document.createElement('div');
+                line.style.color = color || 'var(--accent-cyan)';
+                line.innerHTML = `> ${msg}`;
+                logEl.prepend(line);
+                // 30件超えたら古いものを削除
+                if (logEl.children.length > 30) {
+                    logEl.removeChild(logEl.lastChild);
+                }
+            }
+        }
+
+        window.clearConsole = function () {
+            document.getElementById('connection-log').innerHTML = '<div>> ログを削除しました</div>';
+        };
+
+        let rawLogBuffer = [];
+        let isRawRecording = false;
+
+        function toggleRawRecording() {
+            const btn = document.getElementById('record-btn');
+            const downloadBtn = document.getElementById('download-raw-btn');
+            if (!isRawRecording) {
+                isRawRecording = true;
+                rawLogBuffer = [];
+                btn.innerText = '記録停止';
+                btn.classList.add('recording');
+                downloadBtn.disabled = true;
+            } else {
+                isRawRecording = false;
+                btn.innerText = '波形記録を開始';
+                btn.classList.remove('recording');
+                downloadBtn.disabled = false;
+            }
+        }
+
+        // --- 音声フィードバック ---
+        class ToneGenerator {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            resume() {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playSuccess() {
+                if (!this.ctx) this.init();
+                this.resume();
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                // 洗練された "Ding" 音 (E5 -> A4 のような減衰)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.6);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.6);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            let device, characteristic;
+            let logData = [];
+            let currentPeak = 0;
+            let isMoving = false;
+            let lastRepTime = 0;
+            let moveStartTime = 0;
+            let lastRepPeakVelocity = null; // 前回レップのMax速度
+            const LOCKOUT_MS = 300;
+            const MIN_DURATION_MS = 600; // ユーザー要望: 0.1秒延長 (0.5s -> 0.6s)
+            let graph = new LiveGraph('vbtCanvas');
+            const toneGen = new ToneGenerator(); // インスタンス作成
+
+            // Custom 128-bit UUIDs (Must match firmware)
+            const SERVICE_UUID = '19b10010-e8f2-537e-4f6c-d104768a1214';
+            const CHARACTERISTIC_UUID = '19b10011-e8f2-537e-4f6c-d104768a1214';
+
+            const connectBtn = document.getElementById('connect-btn');
+            const velDisplay = document.getElementById('velocity');
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const logBody = document.getElementById('log-body');
+
+            if (!navigator.bluetooth) {
+                setLog('❌ <b>Bluetooth非対応ブラウザです</b><br>iPhoneならApp Storeで <b>Bluefy</b> を入手してください。', '#ef4444');
+                connectBtn.disabled = true;
+                return;
+            } else {
+                setLog('✅ 準備完了！<br>デバイスに接続してください');
+            }
+
+            connectBtn.onclick = async () => {
+                // iPhone/Bluefy対応: requestDeviceを最優先で呼び出す (ユーザー操作直下)
+                try {
+                    // ここでログを出したりAudioContextを触ると、Bluefyでは「ユーザー操作外」とみなされることがある
+                    // なので、いきなり requestDevice を呼ぶ
+                    // 名前ではなくサービスUUIDで検索する（確実性アップ）
+                    device = await navigator.bluetooth.requestDevice({
+                        filters: [{ services: [SERVICE_UUID] }]
+                    });
+
+                    // 接続成功してからUI更新やAudio初期化を行う
+                    setLog('🔍 デバイスが見つかりました。接続中...');
+                    toneGen.init();
+                    toneGen.resume();
+
+                    const server = await device.gatt.connect();
+                    const service = await server.getPrimaryService(SERVICE_UUID);
+                    characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                    await characteristic.startNotifications();
+                    setLog('📥 接続完了！データ受信開始', '#00f3ff');
+
+                    // UI更新
+                    statusDot.classList.add('connected');
+                    statusText.innerText = "CONNECTED";
+                    statusText.style.color = "#00f3ff";
+                    connectBtn.disabled = true;
+                    connectBtn.innerText = "LINK ESTABLISHED";
+
+                    characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                        const raw = event.target.value;
+                        const velocity = raw.getFloat32(0, true);
+                        let currentVel = Number(velocity.toFixed(3));
+
+                        if (isNaN(currentVel)) return;
+
+                        // 表示用のデッドゾーン (0.02未満は0にする)
+                        if (Math.abs(currentVel) < 0.02) currentVel = 0.0;
+
+                        // ユーザー要望: 挙上時のみ（正の値のみ）を反映させる
+                        // 負の値（下向き）は 0.0 として扱い、グラフやMax表示に影響させない
+                        if (currentVel < 0) currentVel = 0.0;
+
+                        // グラフ更新
+                        graph.addPoint(currentVel);
+                        velDisplay.innerText = currentVel.toFixed(2);
+
+                        // RAW記録
+                        if (isRawRecording) {
+                            const now = new Date();
+                            const timeStr = `${now.getSeconds()}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+                            rawLogBuffer.push({ time: timeStr, velocity: currentVel });
+                            document.getElementById('record-status').innerText = `POINTS: ${rawLogBuffer.length}`;
+                        }
+
+                        // レップ検知
+                        const now = Date.now();
+                        if (currentVel > 0.20) { // 開始閾値を 0.10 -> 0.20 に上げて、小さな揺れを無視
+                            if (!isMoving && (now - lastRepTime > LOCKOUT_MS)) {
+                                isMoving = true;
+                                moveStartTime = now;
+                                currentPeak = 0;
+                            }
+                            if (isMoving) {
+                                if (currentVel > currentPeak) {
+                                    currentPeak = currentVel;
+                                    // リアルタイムでMaxを更新
+                                    document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
+                                }
+                            }
+                        } else if (isMoving && currentVel < 0.05) {
+                            // レップ終了判定
+                            const duration = now - moveStartTime;
+                            // レップ終了判定 (閾値を 0.15 -> 0.25 に上げて微小な揺れを無視)
+                            if (currentPeak > 0.25 && duration > MIN_DURATION_MS) {
+                                // 1レップ完了！
+                                const d = new Date();
+                                const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+
+                                // 前回比の計算
+                                let changeStr = "-";
+                                let changeColor = "var(--text-dim)";
+                                if (lastRepPeakVelocity !== null) {
+                                    const diff = currentPeak - lastRepPeakVelocity;
+                                    const percent = (diff / lastRepPeakVelocity) * 100;
+                                    const sign = diff >= 0 ? "+" : "";
+                                    changeStr = `${sign}${percent.toFixed(1)}%`;
+                                    changeColor = diff >= 0 ? "#22c55e" : "#ef4444";
+                                }
+                                lastRepPeakVelocity = currentPeak;
+
+                                // メイン表示の更新
+                                const changeEl = document.getElementById('rep-change');
+                                changeEl.innerText = changeStr;
+                                changeEl.style.color = changeColor;
+
+                                logBody.insertAdjacentHTML('afterbegin', `<tr><td>${timeStr}</td><td>${currentPeak.toFixed(2)}</td><td style="color:${changeColor}">${changeStr}</td></tr>`);
+                                logData.push({ time: timeStr, velocity: currentPeak.toFixed(2) });
+
+                                // Repカウンター更新
+                                const repEl = document.getElementById('rep-count');
+                                repEl.innerText = parseInt(repEl.innerText) + 1;
+
+                                // 音を鳴らす
+                                toneGen.playSuccess();
+
+                                // 完了エフェクト（フラッシュ）
+                                const card = document.getElementById('last-rep-card');
+                                card.style.backgroundColor = '#334155';
+                                setTimeout(() => card.style.backgroundColor = 'var(--card-bg)', 300);
+
+                                setLog(`Rep 完了! Max: ${currentPeak.toFixed(2)} m/s`, '#22c55e');
+                                lastRepTime = now; // ロックアウト開始
+                            } else if (isMoving) {
+                                setLog(`ノイズ破棄: Peak=${currentPeak.toFixed(2)}, Duration=${duration}ms`, '#94a3b8');
+                            }
+                            isMoving = false;
+                        }
+                    });
+
+                    statusDot.classList.add('connected');
+                    statusText.innerText = '接続完了';
+                    connectBtn.innerText = '接続済み ✅';
+                    connectBtn.disabled = true;
+
+                    device.addEventListener('gattserverdisconnected', () => {
+                        statusDot.classList.remove('connected');
+                        statusText.innerText = '切断されました';
+                        connectBtn.disabled = false;
+                        connectBtn.innerText = 'デバイスに接続する';
+                    });
+
+                } catch (error) {
+                    console.error(error);
+                    const errorMsg = error.message || JSON.stringify(error) || 'Unknown error';
+                    setLog('❌ エラー: ' + errorMsg, '#ef4444');
+                }
+            };
+
+            window.exportCSV = function () {
+                // RAW記録（全データ）があればそれを優先、なければピーク履歴を出力
+                if (rawLogBuffer.length > 0) {
+                    let csvContent = "Timestamp,Velocity(m/s)\n";
+                    rawLogBuffer.forEach(r => {
+                        csvContent += `${r.time},${r.velocity}\n`;
+                    });
+                    downloadFile(csvContent, "vbt_full_log.csv");
+                } else if (logData.length > 0) {
+                    let csvContent = "Time,Peak_Velocity(m/s)\n";
+                    logData.forEach(r => {
+                        csvContent += `${r.time},${r.velocity}\n`;
+                    });
+                    downloadFile(csvContent, "vbt_history.csv");
+                } else {
+                    alert('記録されたデータがありません。「波形記録を開始」を押してから動かしてください。');
+                }
+            };
+
+            window.exportRawCSV = () => {
+                if (rawLogBuffer.length === 0) return alert('波形データがありません');
+                let csv = "Timestamp,Velocity(m/s)\n" + rawLogBuffer.map(r => `${r.time},${r.velocity}`).join("\n");
+                downloadFile(csv, "vbt_raw_waveform.csv");
+            };
+
+            function downloadFile(content, filename) {
+                const blob = new Blob([content], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+            }
+        });
+    </script>
+</body>
+
+</html>

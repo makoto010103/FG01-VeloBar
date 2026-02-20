@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.1</title>
+    <title>VeloBar v3.2</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -452,7 +452,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.1</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.2</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -772,38 +772,38 @@
                 gain.connect(this.ctx.destination);
 
                 if (this.soundType === 'GAME') {
-                    // 8-bit Coin Sound
+                    // 8-bit Coin Sound (louder)
                     osc.type = 'square';
                     osc.frequency.setValueAtTime(988, now); // B5
                     osc.frequency.setValueAtTime(1319, now + 0.1); // E6
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.linearRampToValueAtTime(0.1, now + 0.1);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.4, now + 0.1);
                     gain.gain.linearRampToValueAtTime(0, now + 0.4);
                     osc.start(now);
                     osc.stop(now + 0.4);
                 } else if (this.soundType === 'BEEP') {
-                    // Simple Short Beep
+                    // Simple Short Beep (louder)
                     osc.type = 'sine';
                     osc.frequency.setValueAtTime(1000, now);
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
                     osc.start(now);
-                    osc.stop(now + 0.1);
+                    osc.stop(now + 0.15);
                 } else if (this.soundType === 'MECHANICAL') {
-                    // Click / Mechanical
+                    // Click / Mechanical (louder)
                     osc.type = 'triangle';
                     osc.frequency.setValueAtTime(150, now);
-                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
-                    gain.gain.setValueAtTime(0.5, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
+                    gain.gain.setValueAtTime(0.8, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
                     osc.start(now);
-                    osc.stop(now + 0.05);
+                    osc.stop(now + 0.08);
                 } else {
-                    // BELL (Default) - Sophisticated Ding
+                    // BELL (Default) - Sophisticated Ding (louder)
                     osc.type = 'sine';
                     osc.frequency.setValueAtTime(880, now);
                     osc.frequency.exponentialRampToValueAtTime(440, now + 0.15);
-                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.setValueAtTime(0.5, now);
                     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
                     osc.start(now);
                     osc.stop(now + 0.6);
@@ -814,34 +814,41 @@
                 if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
                 this.resume();
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
-                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.5);
+                const now = this.ctx.currentTime;
+                // Double beep warning
+                for (let i = 0; i < 2; i++) {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(660, now + i * 0.2);
+                    gain.gain.setValueAtTime(0.5, now + i * 0.2);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.2 + 0.12);
+                    osc.start(now + i * 0.2);
+                    osc.stop(now + i * 0.2 + 0.12);
+                }
             }
 
             playStop() {
                 if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
                 this.resume();
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime + 0.3);
-                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.6);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.7);
+                const now = this.ctx.currentTime;
+                // Urgent alarm: 4 rapid high-pitched beeps
+                for (let i = 0; i < 4; i++) {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(1200, now + i * 0.15);
+                    osc.frequency.setValueAtTime(800, now + i * 0.15 + 0.05);
+                    gain.gain.setValueAtTime(0.6, now + i * 0.15);
+                    gain.gain.linearRampToValueAtTime(0, now + i * 0.15 + 0.1);
+                    osc.start(now + i * 0.15);
+                    osc.stop(now + i * 0.15 + 0.1);
+                }
             }
         }
 
@@ -1164,7 +1171,8 @@
                             // End of Rep Logic
                             const duration = now - moveStartTime;
 
-                            if (currentPeak > 0.50 && duration > MIN_DURATION_MS) {
+                            const MAX_VELOCITY = 3.5; // Upper limit (covers Clean 2nd pull)
+                            if (currentPeak > 0.50 && currentPeak < MAX_VELOCITY && duration > MIN_DURATION_MS) {
                                 // Rep Validated
                                 repCountInSet++;
                                 setRepData.push(currentPeak);
