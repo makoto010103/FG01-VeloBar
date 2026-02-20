@@ -252,6 +252,49 @@
             height: 100%;
         }
 
+        /* Countdown Overlay */
+        #countdown-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        #countdown-overlay.active {
+            display: flex;
+        }
+
+        #countdown-number {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 30vw;
+            font-weight: 900;
+            color: var(--primary);
+            text-shadow: 0 0 60px var(--primary), 0 0 120px var(--primary);
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
         /* Control Panel */
         .control-panel {
             display: grid;
@@ -400,6 +443,11 @@
             <div class="summary-reason" id="sum-reason">理由</div>
             <div style="margin-top: 20px; font-size: 0.8rem; color: #64748b;">(タップして閉じる)</div>
         </div>
+    </div>
+
+    <!-- Countdown Overlay -->
+    <div id="countdown-overlay">
+        <span id="countdown-number">5</span>
     </div>
 
     <div class="header">
@@ -623,20 +671,48 @@
 
         let rawLogBuffer = [];
         let isRawRecording = false;
+        let isCountingDown = false;
 
         function toggleRawRecording() {
             const btn = document.getElementById('record-btn');
+            if (isCountingDown) return; // Ignore if already counting down
             if (!isRawRecording) {
-                isRawRecording = true;
+                // Start Countdown
+                isCountingDown = true;
                 rawLogBuffer = [];
-                btn.innerHTML = '<span>⏹</span> Stop Rec';
-                btn.style.borderColor = '#ef4444';
-                btn.style.color = '#ef4444';
+                btn.innerHTML = '<span>⏳</span> 準備中...';
+                btn.style.borderColor = '#f59e0b';
+                btn.style.color = '#f59e0b';
+                btn.disabled = true;
+
+                const overlay = document.getElementById('countdown-overlay');
+                const numEl = document.getElementById('countdown-number');
+                overlay.classList.add('active');
+                let count = 5;
+                numEl.innerText = count;
+
+                const timer = setInterval(() => {
+                    count--;
+                    if (count <= 0) {
+                        clearInterval(timer);
+                        overlay.classList.remove('active');
+                        isCountingDown = false;
+                        isRawRecording = true;
+                        btn.innerHTML = '<span>⏹</span> Stop Rec';
+                        btn.style.borderColor = '#ef4444';
+                        btn.style.color = '#ef4444';
+                        btn.disabled = false;
+                    } else {
+                        numEl.innerText = count;
+                    }
+                }, 1000);
             } else {
+                // Stop Recording
                 isRawRecording = false;
-                btn.innerHTML = '<span>🔴</span> Rec RAW';
+                btn.innerHTML = '<span>🔴</span> 波形記録';
                 btn.style.borderColor = '#334155';
                 btn.style.color = 'var(--text)';
+                btn.disabled = false;
             }
         }
 
@@ -1048,7 +1124,9 @@
                         }
 
                         // --- Rep Detection Logic ---
+                        // ラックアップ誤認防止: カウントダウン中はRep検出しない
                         const now = Date.now();
+                        if (isCountingDown) return;
 
                         // Start of Rep
                         if (currentVel > START_THRESHOLD) {
