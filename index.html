@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.3.1</title>
+    <title>VeloBar v3.4.0</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -299,20 +299,20 @@
             width: 100%;
             max-width: 600px;
             padding: 10px;
-            /* Reduced padding */
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            /* Reduced gap */
+            gap: 8px;
+            /* Extremely reduced gap */
         }
 
         /* Main Metric Card - v3.0 Layout */
         .metric-card {
             background: var(--surface);
             border-radius: 16px;
-            padding: 16px;
-            /* Compact */
+            padding: 12px;
+            /* Ultra compact */
+            margin-bottom: 4px;
             text-align: center;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
             border: 2px solid #334155;
@@ -372,8 +372,9 @@
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
             gap: 8px;
-            margin-top: 16px;
-            padding-top: 12px;
+            margin-top: 8px;
+            /* compact */
+            padding-top: 8px;
             border-top: 1px solid #334155;
         }
 
@@ -443,10 +444,10 @@
         .graph-container {
             background: var(--surface);
             border-radius: 16px;
-            padding: 12px;
+            padding: 8px;
             border: 1px solid #334155;
-            height: 200px;
-            /* Fixed height */
+            height: 160px;
+            /* Reduced fixed height */
             position: relative;
         }
 
@@ -502,8 +503,34 @@
         /* Control Panel */
         .control-panel {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
+            margin-top: 4px;
+        }
+
+        .btn-main {
+            grid-column: 1 / -1;
+            padding: 16px;
+            font-size: 1.25rem;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #00f3ff 0%, #0088ff 100%);
+            color: #0f172a;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.4);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-main:active {
+            transform: scale(0.97);
+        }
+
+        .btn-main.running {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+            color: white;
         }
 
         .btn {
@@ -644,7 +671,7 @@
             <div class="modal-title">⚡ SETUP</div>
             <div class="pickers-row">
                 <!-- Exercise Picker -->
-                <div class="picker-wrap">
+                <div class="picker-wrap" style="flex:0.8;">
                     <div class="picker-label">種目</div>
                     <div class="picker-container">
                         <div class="picker-selection-band"></div>
@@ -653,7 +680,7 @@
                             <div class="picker-item" data-value="DL">DL</div>
                             <div class="picker-item" data-value="BP">BP</div>
                             <div class="picker-item" data-value="CL">CL</div>
-                            <div class="picker-item" data-value="Other">Other</div>
+                            <div class="picker-item" data-value="Other">Oth</div>
                         </div>
                     </div>
                     <div style="font-size:0.7rem;color:var(--text-dim);" id="exercise-label-hint">スクワット</div>
@@ -664,10 +691,19 @@
                     <div class="picker-container">
                         <div class="picker-selection-band"></div>
                         <div class="picker-scroll" id="weight-picker">
-                            <!-- Populated by JS: 0-300 step 2.5 -->
                         </div>
                     </div>
                     <div style="font-size:0.7rem;color:var(--text-dim);">kg</div>
+                </div>
+                <!-- Target Reps Picker -->
+                <div class="picker-wrap" style="flex:0.8;">
+                    <div class="picker-label">目標回数</div>
+                    <div class="picker-container">
+                        <div class="picker-selection-band"></div>
+                        <div class="picker-scroll" id="reps-picker">
+                        </div>
+                    </div>
+                    <div style="font-size:0.7rem;color:var(--text-dim);">reps</div>
                 </div>
             </div>
             <button class="btn-start" onclick="confirmSetup()">START ▶</button>
@@ -694,7 +730,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.3.1</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.4.0</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -707,42 +743,27 @@
 
     <div class="container">
 
-        <!-- Session Setup -->
-        <div class="session-setup"
-            style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 12px; width: 100%;">
-            <select id="exercise-name" class="mode-select" style="width: 100%; box-sizing: border-box;">
-                <option value="SQ">SQ (スクワット)</option>
-                <option value="DL">DL (デッドリフト)</option>
-                <option value="BP">BP (ベンチプレス)</option>
-                <option value="CL">CL (クリーン)</option>
-                <option value="Other">その他</option>
-            </select>
-            <div style="display: flex; align-items: center; gap: 4px;">
-                <select id="weight-input" class="mode-select" style="width: 100%; box-sizing: border-box;">
-                    <!-- Populated by JS -->
+        <!-- Status Bar -->
+        <div
+            style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); align-items: center;">
+            <div id="current-setup-info">SET START で設定してください</div>
+            <div>
+                通知音:
+                <select id="sound-select" class="mode-select" style="font-size: 0.75rem; padding: 2px 4px;">
+                    <option value="BELL">ベル</option>
+                    <option value="GAME">ゲーム</option>
+                    <option value="BEEP">電子音</option>
+                    <option value="MECHANICAL">機械音</option>
+                    <option value="OFF">なし</option>
                 </select>
-                <span style="font-size: 0.8rem; color: var(--text-dim);">kg</span>
             </div>
-        </div>
-
-        <!-- Sound Setup -->
-        <div style="margin-bottom: 12px; display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
-            <label style="font-size: 0.8rem; color: var(--text-dim);">通知音:</label>
-            <select id="sound-select" class="mode-select" style="width: auto;">
-                <option value="BELL">ベル (標準)</option>
-                <option value="GAME">ゲーム (8bit)</option>
-                <option value="BEEP">電子音</option>
-                <option value="MECHANICAL">機械音</option>
-                <option value="OFF">なし</option>
-            </select>
         </div>
 
         <!-- Main Metric ID for JS reference -->
         <div id="metric-card" class="metric-card">
-            <div class="metric-label">最高速度 (Peak Velocity)</div>
+            <div class="metric-label" style="font-size: 0.75rem;">リアルタイム・ピーク速度 (m/s)</div>
             <div class="metric-value-container">
-                <span id="velocity-display" class="metric-value">0.00</span>
-                <span class="metric-unit">m/s</span>
+                <span id="velocity-display" class="metric-value" style="font-size: 5rem;">0.00</span>
             </div>
 
             <div id="rep-change" class="rep-change">-</div>
@@ -753,20 +774,14 @@
             <div class="sub-metrics">
                 <div class="sub-metric">
                     <span class="label">回数</span>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <button onclick="adjustRep(-1)"
-                            style="padding: 2px 6px; background: #334155; border: none; color: white; border-radius: 4px;">-</button>
-                        <span id="rep-count" class="value">0</span>
-                        <button onclick="adjustRep(1)"
-                            style="padding: 2px 6px; background: #334155; border: none; color: white; border-radius: 4px;">+</button>
-                    </div>
+                    <span id="rep-count" class="value">0 / --</span>
                 </div>
                 <div class="sub-metric">
-                    <span class="label">ベスト</span>
-                    <span id="set-best" class="value">0.00</span>
+                    <span class="label">1Rep Max</span>
+                    <span id="last-rep-max" class="value">0.00</span>
                 </div>
                 <div class="sub-metric">
-                    <span class="label">疲労度</span>
+                    <span class="label">対ベスト疲労度</span>
                     <span id="fatigue-val" class="value fatigue-value">0%</span>
                 </div>
             </div>
@@ -777,18 +792,10 @@
         </div>
 
         <div class="control-panel">
-            <button id="connect-btn" class="btn btn-primary">
-                <span>⚡</span> 接続
-            </button>
-            <button class="btn" onclick="resetMax()">
-                <span>🔄</span> リセット
-            </button>
-            <button class="btn" id="record-btn" onclick="toggleRawRecording()">
-                <span>🔴</span> 波形記録
-            </button>
-            <button class="btn" onclick="copyToClipboard()">
-                <span>📋</span> コピー (CSV)
-            </button>
+            <button id="main-start-btn" class="btn-main" onclick="handleStartSet()">▶ SET START</button>
+            <button id="connect-btn" class="btn"><span>⚡</span> 接続</button>
+            <button class="btn" onclick="resetMax()"><span>🔄</span> リセット</button>
+            <button class="btn" onclick="copyToClipboard(false)"><span>📋</span> CSV</button>
         </div>
 
         <div class="log-container">
@@ -911,6 +918,13 @@
         let rawLogBuffer = [];
         let isRawRecording = false;
         let isCountingDown = false;
+
+        // Auto recording wrapper
+        function startAutoRecording() {
+            isRawRecording = true;
+            rawLogBuffer = [];
+            // Remove countdown overlay usage since we want instant start
+        }
 
         function toggleRawRecording() {
             const btn = document.getElementById('record-btn');
@@ -1103,11 +1117,16 @@
         };
 
         function getExerciseThresholds() {
-            const ex = document.getElementById('exercise-name').value || 'Other';
-            return EXERCISE_THRESHOLDS[ex] || EXERCISE_THRESHOLDS['Other'];
+            return EXERCISE_THRESHOLDS[currentExercise] || EXERCISE_THRESHOLDS['Other'];
         }
 
         // State Variables
+        // --- Application Set State ---
+        let currentExercise = 'SQ';
+        let currentWeight = 100;
+        let setTargetReps = 10;
+        let isSetRunning = false;
+
         let currentMode = 'POWER';
         let setBestVelocity = 0.0;
         let repCountInSet = 0;
@@ -1135,12 +1154,37 @@
             setRepData = [];
             consecutiveWarningCount = 0;
             lastRepPeakVelocity = null;
-            document.getElementById('rep-count').innerText = "0";
-            document.getElementById('set-best').innerText = "0.00";
+            document.getElementById('rep-count').innerText = `0 / ${setTargetReps}`;
+            document.getElementById('last-rep-max').innerText = "0.00";
             document.getElementById('fatigue-val').innerText = "0%";
             document.getElementById('fatigue-val').style.color = "var(--text)";
             updateStatusColor('neutral');
             hideAlert();
+        }
+
+
+        function handleStartSet() {
+            if (isSetRunning) {
+                // End gracefully
+                endSet("STOP BOTTON PRESSED");
+            } else {
+                // Show modal
+                document.getElementById('startup-modal').style.display = 'flex';
+                document.getElementById('startup-modal').style.opacity = '1';
+            }
+        }
+
+        function endSet(reason) {
+            isSetRunning = false;
+            // Stop recording
+            isRawRecording = false;
+
+            // Update UI
+            const btn = document.getElementById('main-start-btn');
+            btn.innerHTML = '▶ SET START';
+            btn.classList.remove('running');
+
+            showSummary(reason);
         }
 
         // UI Helpers
@@ -1184,13 +1228,8 @@
 
         // v3.1 Data Management
         // Populate Weight Options (50-150, step 5)
-        const weightSelect = document.getElementById('weight-input');
-        for (let w = 50; w <= 150; w += 5) {
-            const opt = document.createElement('option');
-            opt.value = w;
-            opt.textContent = w;
-            weightSelect.appendChild(opt);
-        }
+        // NOOP weightSelect
+
 
         // Duration Tuning
         // ユーザー要望: 0.3くらいでいいよ -> 300ms
@@ -1200,17 +1239,16 @@
         const START_THRESHOLD = 0.12;
         const END_THRESHOLD = 0.05; // 確実に静止を捉えるまで継続させる
 
+        // Manual rep adjust removed from UI, kept in code just in case
         window.adjustRep = function (delta) {
             repCountInSet += delta;
             if (repCountInSet < 0) repCountInSet = 0;
-            document.getElementById('rep-count').innerText = repCountInSet;
-            // Best Velocity check logic remains as is (locked after rep 2).
-            // Manual adjustment does not trigger re-lock or unlock logic to keep it simple.
+            document.getElementById('rep-count').innerText = `${repCountInSet} / ${setTargetReps}`;
         }
 
         window.copyToClipboard = function () {
-            const exercise = document.getElementById('exercise-name').value || "NoName";
-            const load = document.getElementById('weight-input').value || "0";
+            const exercise = currentExercise || "NoName";
+            const load = currentWeight || "0";
 
             // Export raw recording buffer (all data points during REC)
             if (rawLogBuffer.length > 0) {
@@ -1327,14 +1365,8 @@
             });
 
             // Populate Weight Select (50-150 step 5)
-            const weightInput = document.getElementById('weight-input');
-            for (let w = 50; w <= 150; w += 5) {
-                const opt = document.createElement('option');
-                opt.value = w;
-                opt.textContent = w;
-                if (w === 100) opt.selected = true; // Default
-                weightInput.appendChild(opt);
-            }
+            // NOOP weightInput
+
 
             // Stillness Check Loop (1Hz)
             setInterval(() => {
@@ -1448,7 +1480,8 @@
                                         // Rep Validated
                                         repCountInSet++;
                                         setRepData.push(currentPeak);
-                                        document.getElementById('rep-count').innerText = repCountInSet;
+                                        document.getElementById('rep-count').innerText = `${repCountInSet} / ${setTargetReps}`;
+                                        document.getElementById('last-rep-max').innerText = currentPeak.toFixed(2);
                                         setLog(`✅ Rep ${repCountInSet}: ${currentPeak.toFixed(2)} m/s (${duration}ms)`, 'var(--good)');
 
                                         // --- v3.0 JUDGMENT ENGINE ---
@@ -1490,15 +1523,15 @@
 
                                         if (isCriticalDrop) {
                                             status = 'stop';
-                                            stopReason = "CRITICAL VELOCITY DROP";
+                                            stopReason = "速度低下によりセット終了（安全装置）";
                                         } else if (fatigue >= threshold + 5) {
                                             status = 'stop';
-                                            stopReason = "FATIGUE LIMIT EXCEEDED";
+                                            stopReason = "目標疲労度オーバー（セット終了）";
                                         } else if (fatigue >= threshold) {
                                             consecutiveWarningCount++;
                                             if (consecutiveWarningCount >= 2) {
                                                 status = 'stop';
-                                                stopReason = "FATIGUE THRESHOLD (x2)";
+                                                stopReason = "疲労度閾値に連続到達（セット終了）";
                                             } else {
                                                 status = 'warning';
                                             }
@@ -1510,11 +1543,17 @@
                                             consecutiveWarningCount = 0;
                                         }
 
+                                        // Also check target reps
+                                        if (repCountInSet >= setTargetReps && status !== 'stop') {
+                                            status = 'stop';
+                                            stopReason = "目標回数達成（セット完了）";
+                                        }
+
                                         updateStatusColor(status);
 
                                         if (status === 'stop') {
                                             toneGen.playStop();
-                                            showSummary(stopReason);
+                                            endSet(stopReason);
                                         } else if (status === 'warning') {
                                             toneGen.playWarning();
                                         } else {
@@ -1568,12 +1607,25 @@
         // --- Weight picker: 0, 2.5, 5 ... 300 ---
         (function buildWeightPicker() {
             const scroll = document.getElementById('weight-picker');
-            scroll.innerHTML = ''; // 重複防止: 既存リストをクリア
+            scroll.innerHTML = '';
             for (let w = 0; w <= 300; w += 2.5) {
                 const div = document.createElement('div');
                 div.className = 'picker-item';
                 div.dataset.value = w;
                 div.innerHTML = `${w % 1 === 0 ? w : w.toFixed(1)}<span class="picker-suffix">kg</span>`;
+                scroll.appendChild(div);
+            }
+        })();
+
+        // --- Reps picker: 1 to 30 ---
+        (function buildRepsPicker() {
+            const scroll = document.getElementById('reps-picker');
+            scroll.innerHTML = '';
+            for (let r = 1; r <= 30; r++) {
+                const div = document.createElement('div');
+                div.className = 'picker-item';
+                div.dataset.value = r;
+                div.innerHTML = `${r}`;
                 scroll.appendChild(div);
             }
         })();
@@ -1611,30 +1663,40 @@
         }, 0);
 
         // --- Init weight picker (default: 60kg = index 24) ---
-        initPicker(document.getElementById('weight-picker'), null, 24); // 24 * 2.5 = 60kg
+        initPicker(document.getElementById('weight-picker'), null, 24);
+        initPicker(document.getElementById('reps-picker'), null, 9); // default 10 reps (index 9) // 24 * 2.5 = 60kg
 
         // --- Confirm and close modal ---
         function confirmSetup() {
-            // Get active exercise
             const exActive = document.querySelector('#exercise-picker .picker-item.active');
             const wtActive = document.querySelector('#weight-picker .picker-item.active');
+            const repActive = document.querySelector('#reps-picker .picker-item.active');
 
             if (exActive) {
-                document.getElementById('exercise-name').value = exActive.dataset.value;
+                currentExercise = exActive.dataset.value;
             }
             if (wtActive) {
-                const wt = parseFloat(wtActive.dataset.value);
-                // Select nearest option in weight-input select
-                const weightSel = document.getElementById('weight-input');
-                let closest = null, minDiff = Infinity;
-                [...weightSel.options].forEach(opt => {
-                    const diff = Math.abs(parseFloat(opt.value) - wt);
-                    if (diff < minDiff) { minDiff = diff; closest = opt.value; }
-                });
-                if (closest !== null) weightSel.value = closest;
+                currentWeight = parseFloat(wtActive.dataset.value);
+            }
+            if (repActive) {
+                setTargetReps = parseInt(repActive.dataset.value);
             }
 
-            // Close modal with fade-out
+            // Update UI info
+            const modeName = document.getElementById('mode-select').options[document.getElementById('mode-select').selectedIndex].text;
+            document.getElementById('current-setup-info').innerText = `${EXERCISE_LABELS[currentExercise] || currentExercise} / ${currentWeight}kg / 目標 ${setTargetReps} reps`;
+
+            // Start Set Process
+            isSetRunning = true;
+            resetSetState();
+            startAutoRecording();
+
+            // Adjust UI
+            const btn = document.getElementById('main-start-btn');
+            btn.innerHTML = '⏹ STOP SET';
+            btn.classList.add('running');
+
+            // Close modal
             const modal = document.getElementById('startup-modal');
             modal.style.transition = 'opacity 0.3s ease';
             modal.style.opacity = '0';
