@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.4.1</title>
+    <title>VeloBar v3.4.2</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -14,7 +14,7 @@
             position: fixed;
             inset: 0;
             z-index: 1000;
-            display: flex;
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -730,7 +730,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.4.1</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.4.2</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -918,6 +918,7 @@
         let rawLogBuffer = [];
         let isRawRecording = false;
         let isCountingDown = false;
+        let countdownTimer = null;
 
         // Auto recording wrapper
         function startAutoRecording() {
@@ -1164,13 +1165,16 @@
 
 
         function handleStartSet() {
-            if (isSetRunning) {
-                // End gracefully
+            if (isSetRunning || isCountingDown) {
+                // End gracefully or cancel countdown
                 endSet("STOP BOTTON PRESSED");
             } else {
                 // Show modal
                 document.getElementById('startup-modal').style.display = 'flex';
-                document.getElementById('startup-modal').style.opacity = '1';
+                // Small delay to allow display to apply before opacity transition
+                setTimeout(() => {
+                    document.getElementById('startup-modal').style.opacity = '1';
+                }, 10);
             }
         }
 
@@ -1179,12 +1183,25 @@
             // Stop recording
             isRawRecording = false;
 
+            if (isCountingDown) {
+                isCountingDown = false;
+                clearInterval(countdownTimer);
+                document.getElementById('countdown-overlay').classList.remove('active');
+            }
+
             // Update UI
             const btn = document.getElementById('main-start-btn');
             btn.innerHTML = '▶ SET START';
             btn.classList.remove('running');
+            btn.style.background = '';
+            btn.disabled = false;
 
-            showSummary(reason);
+            if (reason !== "STOP BOTTON PRESSED" || setRepData.length > 0) {
+                showSummary(reason);
+            } else {
+                // If cancelled before any reps, just reset
+                resetSetState();
+            }
         }
 
         // UI Helpers
@@ -1695,21 +1712,73 @@
             const modeName = document.getElementById('mode-select').options[document.getElementById('mode-select').selectedIndex].text;
             document.getElementById('current-setup-info').innerText = `${EXERCISE_LABELS[currentExercise] || currentExercise} / ${currentWeight}kg / 目標 ${setTargetReps} reps`;
 
-            // Start Set Process
-            isSetRunning = true;
-            resetSetState();
-            startAutoRecording();
-
-            // Adjust UI
-            const btn = document.getElementById('main-start-btn');
-            btn.innerHTML = '⏹ STOP SET';
-            btn.classList.add('running');
-
-            // Close modal
+            // Close modal visually first
             const modal = document.getElementById('startup-modal');
             modal.style.transition = 'opacity 0.3s ease';
             modal.style.opacity = '0';
-            setTimeout(() => { modal.style.display = 'none'; }, 300);
+            setTimeout(() => {
+                modal.style.display = 'none';
+                startSetWithCountdown();
+            }, 300);
+        }
+
+        function startSetWithCountdown() {
+            if (isCountingDown) return;
+            isCountingDown = true;
+
+            resetSetState(); // Reset UI immediately
+
+            // Setup UI for countdown
+            const btn = document.getElementById('main-start-btn');
+            btn.innerHTML = '⏳ 準備中...';
+            btn.style.background = '#f59e0b'; // orange for prep
+            btn.style.color = '#fff';
+
+            const overlay = document.getElementById('countdown-overlay');
+            const numEl = document.getElementById('countdown-number');
+            overlay.classList.add('active');
+            let count = 5;
+            numEl.innerText = count;
+
+            function playCountdownBeep(isLast) {
+                try {
+                    const actx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = actx.createOscillator();
+                    const gain = actx.createGain();
+                    osc.connect(gain);
+                    gain.connect(actx.destination);
+                    osc.frequency.value = isLast ? 1200 : 800; // High pitch for "GO"
+                    osc.type = isLast ? 'square' : 'sine';
+                    gain.gain.setValueAtTime(0.3, actx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (isLast ? 0.5 : 0.15));
+                    osc.start(actx.currentTime);
+                    osc.stop(actx.currentTime + (isLast ? 0.5 : 0.15));
+                } catch (e) { }
+            }
+
+            playCountdownBeep(false);
+
+            countdownTimer = setInterval(() => {
+                count--;
+                if (count <= 0) {
+                    clearInterval(countdownTimer);
+                    playCountdownBeep(true);
+                    overlay.classList.remove('active');
+                    isCountingDown = false;
+
+                    // Actually start the set process
+                    isSetRunning = true;
+                    startAutoRecording();
+
+                    // Button becomes STOP
+                    btn.innerHTML = '⏹ STOP SET';
+                    btn.classList.add('running');
+                    btn.style.background = ''; // Remove inline so CSS class takes over
+                } else {
+                    numEl.innerText = count;
+                    playCountdownBeep(false);
+                }
+            }, 1000);
         }
     </script>
 
