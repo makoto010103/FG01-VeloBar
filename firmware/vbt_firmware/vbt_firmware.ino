@@ -62,9 +62,6 @@ void setup() {
   for(int i=0; i<10; i++) { delay(200); digitalWrite(LED_HEARTBEAT, i%2); }
   digitalWrite(LED_HEARTBEAT, HIGH);
 
-  pinMode(D1, OUTPUT); digitalWrite(D1, HIGH);
-  pinMode(D2, OUTPUT); digitalWrite(D2, LOW);
-  pinMode(D3, OUTPUT); digitalWrite(D3, HIGH);
   delay(500);
 
   Serial.println("--- VeloBar 6DOF Fusion Ver ---");
