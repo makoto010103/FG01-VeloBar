@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.4.0</title>
+    <title>VeloBar v3.4.1</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -730,7 +730,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.4.0</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.4.1</span></h1>
             <span id="bt-status" class="status-badge">未接続</span>
         </div>
         <!-- Mode Selector -->
@@ -1636,15 +1636,22 @@
             const items = scrollEl.querySelectorAll('.picker-item');
 
             function updateActive() {
-                const center = scrollEl.scrollTop + ITEM_H * 1.5; // offset for padding
-                let bestIdx = 0, bestDist = Infinity;
+                // The visual center we care about is the middle of the container
+                // Given padding-top is 67px, visually center index 0 is at scrollTop 0
+                // We just need to divide scrollTop by ITEM_H to find index.
+                let centerIndex = Math.round(scrollEl.scrollTop / ITEM_H);
+
+                // Keep bounded
+                centerIndex = Math.max(0, Math.min(items.length - 1, centerIndex));
+
                 items.forEach((item, i) => {
-                    const itemCenter = i * ITEM_H + ITEM_H / 2;
-                    const dist = Math.abs(itemCenter - scrollEl.scrollTop - (scrollEl.clientHeight / 2 - ITEM_H / 2));
-                    item.classList.toggle('active', dist < ITEM_H / 2);
-                    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+                    if (i === centerIndex) {
+                        item.classList.add('active');
+                        if (onChangeCallback) onChangeCallback(item);
+                    } else {
+                        item.classList.remove('active');
+                    }
                 });
-                if (onChangeCallback) onChangeCallback(items[bestIdx]);
             }
 
             scrollEl.addEventListener('scroll', updateActive, { passive: true });
@@ -1660,11 +1667,13 @@
         const exHint = document.getElementById('exercise-label-hint');
         initPicker(document.getElementById('exercise-picker'), (item) => {
             exHint.textContent = EXERCISE_LABELS[item.dataset.value] || '';
-        }, 0);
+        }, 0); // SQ=0
 
         // --- Init weight picker (default: 60kg = index 24) ---
-        initPicker(document.getElementById('weight-picker'), null, 24);
-        initPicker(document.getElementById('reps-picker'), null, 9); // default 10 reps (index 9) // 24 * 2.5 = 60kg
+        initPicker(document.getElementById('weight-picker'), null, 24); // 24 * 2.5 = 60kg
+
+        // --- Init reps picker (default: 10 reps = index 9) ---
+        initPicker(document.getElementById('reps-picker'), null, 9); // default 10 reps (index 9)
 
         // --- Confirm and close modal ---
         function confirmSetup() {
