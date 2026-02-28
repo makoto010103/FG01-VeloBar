@@ -192,10 +192,16 @@ void loop() {
     
     // 静止判定ロジック（ロックアウトの微細な震えを強引に静止へ持ち込むため、閾値を緩和・判定を短縮）
     bool is_static = false;
-    if (gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.25f) {
+    // 重力が1G付近（傾きすぎていない、かつ激しく動いていない）かつ、加速度の変動が少ない場合のみZUPTを許可
+    if (acc_near_1g && gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.25f) {
         zupt_static_frames++;
         if (zupt_static_frames > 15) { 
             is_static = true;
+        }
+        
+        // 異常リセット: もし長時間静止判定が続いた場合は、Madgwickの姿勢を徐々に強制リセット（ドリフト対策とスタック防止）
+        if (zupt_static_frames > 100) {
+           filter.updateIMU(0, 0, 0, ax_g, ay_g, az_g, dt); // ジャイロを0とみなして重力方向だけを信用させる
         }
     } else {
         zupt_static_frames = 0;
