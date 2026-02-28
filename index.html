@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.6.0</title>
+    <title>VeloBar v3.6.1</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -730,7 +730,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.6.0</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.6.1</span></h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="bt-status" class="status-badge">未接続</span>
                 <span id="battery-status" class="status-badge"
@@ -1114,9 +1114,9 @@
 
         // Per-Exercise Velocity Thresholds
         const EXERCISE_THRESHOLDS = {
-            'SQ': { minPeak: 0.25, maxVelocity: 3.0 },  // スクワット
-            'DL': { minPeak: 0.30, maxVelocity: 2.5 },  // デッドリフト
-            'BP': { minPeak: 0.25, maxVelocity: 2.5 },  // ベンチプレス（遅い種目）
+            'SQ': { minPeak: 0.10, maxVelocity: 3.0 },  // スクワット（ケース等での減衰吸収のため極限まで低下）
+            'DL': { minPeak: 0.15, maxVelocity: 2.5 },  // デッドリフト
+            'BP': { minPeak: 0.15, maxVelocity: 2.5 },  // ベンチプレス（遅い種目）
             'CL': { minPeak: 0.50, maxVelocity: 3.5 },  // クリーン（爆発的）
             'Other': { minPeak: 0.30, maxVelocity: 3.5 },  // その他
         };
