@@ -63,6 +63,10 @@ void setup() {
   pinMode(LED_HEARTBEAT, OUTPUT);
   digitalWrite(LED_HEARTBEAT, HIGH); // 消灯(Negative Logic)
 
+  // Battery Voltage Divider Enable Pin
+  pinMode(VBAT_ENABLE, OUTPUT);
+  digitalWrite(VBAT_ENABLE, HIGH); // Disable voltage divider by default to save power
+
   Serial.begin(115200);
   // 起動時の初期待ちを少し長くして安定させる
   for(int i=0; i<10; i++) { delay(200); digitalWrite(LED_HEARTBEAT, i%2); }
@@ -142,10 +146,16 @@ void loop() {
   if (millis() - lastBatteryCheck > 5000) {
       lastBatteryCheck = millis();
       
-      // XIAO nRF52840 Sense uses P0.31 with a voltage divider (1M / 510K) -> Vbat / (1000+510)*510
-      // Actually, standard seeed code: Vbat = analogRead(PIN_VBAT) * (3.6 / 4096) * (1000 + 510) / 510;
-      // Formula simplifies to: analogRead() * 3.6 / 4096 * 2.9607
+      // XIAO nRF52840 Sense uses P0.31 with a voltage divider (1M / 510K)
+      // To read it, we must pull VBAT_ENABLE (pin 14) LOW
+      digitalWrite(VBAT_ENABLE, LOW);
+      delay(2); // Wait for voltage to settle
+      
+      // Calculate voltage (ADC is 12-bit, reference is 3.6V)
       float vbat_mv = analogRead(PIN_VBAT) * (3600.0f / 4096.0f) * 2.9607f;
+      
+      // Turn off voltage divider to save power
+      digitalWrite(VBAT_ENABLE, HIGH);
       
       // LiPo conversion mapping: 4.2V(100%), 3.7V(50%), 3.3V(0%)
       float battery_pct = 0;
