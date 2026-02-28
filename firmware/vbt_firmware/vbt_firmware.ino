@@ -244,12 +244,15 @@ void loop() {
     
     // 加速度の大きさ（重力込み）で動作中かどうかも判定
     float acc_mag = sqrt(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
-    bool acc_near_1g = (acc_mag > 0.95f && acc_mag < 1.05f); // 重力のみ≒静止
+    // v3.6.2: スマホケースでブレが完全に吸収されると、重いスクワットの初動(0.04G等)が
+    // 0.95〜1.05の「静止判定枠」に収まり続けてしまい、速度が0になる現象を修正するため、
+    // 判定枠を ±0.05G から ±0.03G へとより厳しく（敏感に）狭める。
+    bool acc_near_1g = (acc_mag > 0.97f && acc_mag < 1.03f); // 重力のみ≒静止
     
     // 静止判定ロジック（ロックアウトの微細な震えを強引に静止へ持ち込むため、閾値を緩和・判定を短縮）
     bool is_static = false;
     // 重力が1G付近（傾きすぎていない、かつ激しく動いていない）かつ、加速度の変動が少ない場合のみZUPTを許可
-    if (acc_near_1g && gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.25f) {
+    if (acc_near_1g && gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.20f) {
         zupt_static_frames++;
         if (zupt_static_frames > 15) { 
             is_static = true;
