@@ -43,7 +43,7 @@ float effectiveSampleRate = 100.0f; // 初期値
 #define LED_HEARTBEAT LED_RED
 
 // Battery Monitoring
-#define PIN_VBAT P0_31 // NRF52840 Sense internal battery voltage divider pin
+// PIN_VBAT is already defined by the Seeed nRF52840 board package as (32)
 unsigned long lastBatteryCheck = 0;
 int currentBatteryLevel = 100;
 
