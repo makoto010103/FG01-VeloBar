@@ -73,7 +73,7 @@ void setup() {
   digitalWrite(LED_HEARTBEAT, HIGH);
 
   // Battery ADC Resolution
-  analogReference(AR_INTERNAL); // Set reference to 3.6V for nRF52840
+  analogReference(AR_INTERNAL_2_4); // Set reference to 2.4V for nRF52840 (Seeed recommended)
   analogReadResolution(12);     // 12-bit ADC
 
   delay(500);
@@ -149,10 +149,17 @@ void loop() {
       // XIAO nRF52840 Sense uses P0.31 with a voltage divider (1M / 510K)
       // To read it, we must pull VBAT_ENABLE (pin 14) LOW
       digitalWrite(VBAT_ENABLE, LOW);
-      delay(2); // Wait for voltage to settle
+      delay(10); // Wait for voltage to settle (high impedance divider needs more time)
       
-      // Calculate voltage (ADC is 12-bit, reference is 3.6V)
-      float vbat_mv = analogRead(PIN_VBAT) * (3600.0f / 4096.0f) * 2.9607f;
+      // Calculate voltage (ADC is 12-bit, reference is 2.4V)
+      // Take multiple samples to reduce noise
+      int adc_sum = 0;
+      for (int i = 0; i < 8; i++) {
+          adc_sum += analogRead(PIN_VBAT);
+      }
+      float adc_avg = adc_sum / 8.0f;
+      
+      float vbat_mv = adc_avg * (2400.0f / 4096.0f) * 2.9607f;
       
       // Turn off voltage divider to save power
       digitalWrite(VBAT_ENABLE, HIGH);
