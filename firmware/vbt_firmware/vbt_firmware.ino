@@ -21,6 +21,7 @@ const uint8_t UUID128_CHR[] = {
 
 BLEService        vbtService = BLEService(UUID128_SVC);
 BLECharacteristic vbtCharacteristic = BLECharacteristic(UUID128_CHR);
+BLEBas            blebas; // Standard Battery Service
 Madgwick          filter;
 
 float velocity = 0.0;
@@ -40,6 +41,11 @@ float effectiveSampleRate = 100.0f; // 初期値
 
 // Onboard LED for status (Using Red as per user request)
 #define LED_HEARTBEAT LED_RED
+
+// Battery Monitoring
+#define PIN_VBAT P0_31 // NRF52840 Sense internal battery voltage divider pin
+unsigned long lastBatteryCheck = 0;
+int currentBatteryLevel = 100;
 
 // 接続・切断のイベントハンドラ
 void connect_callback(uint16_t conn_handle) {
@@ -61,6 +67,10 @@ void setup() {
   // 起動時の初期待ちを少し長くして安定させる
   for(int i=0; i<10; i++) { delay(200); digitalWrite(LED_HEARTBEAT, i%2); }
   digitalWrite(LED_HEARTBEAT, HIGH);
+
+  // Battery ADC Resolution
+  analogReference(AR_INTERNAL); // Set reference to 3.6V for nRF52840
+  analogReadResolution(12);     // 12-bit ADC
 
   delay(500);
 
@@ -102,6 +112,10 @@ void setup() {
   vbtCharacteristic.setFixedLen(4);
   vbtCharacteristic.begin();
 
+  // Battery Service Begin
+  blebas.begin();
+  blebas.write(100); // Initial dummy read
+
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE); 
   Bluefruit.Advertising.addService(vbtService);
   Bluefruit.Advertising.addName();
@@ -122,6 +136,33 @@ void loop() {
   if (millis() - lastBlink > 500) {
       lastBlink = millis();
       digitalWrite(LED_HEARTBEAT, !digitalRead(LED_HEARTBEAT));
+  }
+
+  // --- 2.5 バッテリー残量の計測と送信 (5秒ごと) ---
+  if (millis() - lastBatteryCheck > 5000) {
+      lastBatteryCheck = millis();
+      
+      // XIAO nRF52840 Sense uses P0.31 with a voltage divider (1M / 510K) -> Vbat / (1000+510)*510
+      // Actually, standard seeed code: Vbat = analogRead(PIN_VBAT) * (3.6 / 4096) * (1000 + 510) / 510;
+      // Formula simplifies to: analogRead() * 3.6 / 4096 * 2.9607
+      float vbat_mv = analogRead(PIN_VBAT) * (3600.0f / 4096.0f) * 2.9607f;
+      
+      // LiPo conversion mapping: 4.2V(100%), 3.7V(50%), 3.3V(0%)
+      float battery_pct = 0;
+      if (vbat_mv >= 4150) battery_pct = 100;
+      else if (vbat_mv > 3300) {
+          battery_pct = 100.0f * ((vbat_mv - 3300.0f) / (4150.0f - 3300.0f));
+      } else {
+          battery_pct = 0;
+      }
+      
+      if (battery_pct > 100) battery_pct = 100;
+      if (battery_pct < 0) battery_pct = 0;
+      
+      currentBatteryLevel = (int)battery_pct;
+      if (Bluefruit.connected()) {
+          blebas.write(currentBatteryLevel);
+      }
   }
 
   unsigned long now_micros = micros();
