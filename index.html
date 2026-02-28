@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.5.0</title>
+    <title>VeloBar v3.6.0</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -730,7 +730,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.5.0</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.6.0</span></h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="bt-status" class="status-badge">未接続</span>
                 <span id="battery-status" class="status-badge"
@@ -1412,6 +1412,18 @@
                 batEl.innerHTML = `🔋 ${level}%`;
             }
 
+            function onDisconnected(event) {
+                setLog('Bluetooth Disconnected!', '#ef4444');
+                btStatus.innerText = "切断されました";
+                btStatus.className = "status-badge disconnected";
+                btStatus.style.background = "#ef4444";
+                connectBtn.innerHTML = "<span>⚡</span> 再接続";
+                connectBtn.disabled = false;
+                document.getElementById('battery-status').style.display = 'none';
+            }
+
+            let lastValidVel = 0.0;
+
             connectBtn.onclick = async () => {
                 try {
                     device = await navigator.bluetooth.requestDevice({
@@ -1420,6 +1432,8 @@
                         ],
                         optionalServices: ['battery_service'] // 0x180F
                     });
+
+                    device.addEventListener('gattserverdisconnected', onDisconnected);
 
                     setLog('Connecting...');
                     toneGen.init();
@@ -1433,7 +1447,8 @@
                     setLog('Connected', '#22c55e');
 
                     btStatus.innerText = "Connected";
-                    btStatus.classList.add("connected");
+                    btStatus.className = "status-badge connected";
+                    btStatus.style.background = "var(--good)";
                     connectBtn.innerHTML = "<span>✅</span> Linked";
                     connectBtn.disabled = true;
 
@@ -1462,7 +1477,13 @@
                         const raw = event.target.value;
                         const velocity = raw.getFloat32(0, true);
                         let currentVel = Number(velocity.toFixed(3));
-                        if (isNaN(currentVel)) return;
+
+                        // NaN Fallback (Robutness against corrupted packets)
+                        if (isNaN(currentVel)) {
+                            currentVel = lastValidVel;
+                        } else {
+                            lastValidVel = currentVel;
+                        }
 
                         // RX Counter + Debug Raw Value
                         rxCount++;
@@ -1478,8 +1499,8 @@
                         graph.addPoint(currentVel);
                         velDisplay.innerText = currentVel.toFixed(2);
 
-                        // Stillness Tracker
-                        if (currentVel > 0.05) {
+                        // Stillness Tracker (Threshold raised to 0.10 to ignore ground noise completely)
+                        if (currentVel > 0.10) {
                             lastMotionTime = Date.now();
                         }
 
