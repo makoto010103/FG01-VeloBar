@@ -232,11 +232,17 @@ void loop() {
     // 鉛直方向の加速度 (Earth-Z) だけ取り出したい
     // Earth-Z accel = dot product of Linear Accel and Gravity Vector (normalized) in sensor frame
     // 重力ベクトル(gravity_x,y,z)は長さ1なので、これとの内積を取れば鉛直成分
-    // ただしMadgwickの座標系定義に注意が必要。通常、重力は下向き(Z or -Z)。
-    // ここでは「重力方向」への射影成分を計算します。
-    // gravity_x, y, z は「下向き」の単位ベクトル(センサー座標系)
+    // ただしMadgwickの座標系定義に注意が必要。
     float vertical_accel_g = (lin_acc_x * gravity_x) + (lin_acc_y * gravity_y) + (lin_acc_z * gravity_z);
     
+    // スマホケース等でデバイスが逆さま（Upside Down）や横向きに入っている場合、
+    // 重力ベクトルの向きと加速度の向きが逆転して `vertical_accel_g` がマイナスとして
+    // 算出され、後段の「マイナス方向の速度を即座に殺す」非対称減衰ロジックで挙上が打ち消されてしまう問題がある。
+    // 挙上（= 重力に逆らう方向の絶対的な加速度）のみを抽出するため、絶対値化する。
+    // （※ただし純粋な「下ろす」動作もプラスになってしまうが、VBTでは「挙上（コンセントリック）」のみを
+    // 評価し、エキセントリック（下ろす）時はZUPTや減衰で0になるため、実用上は絶対値で問題ない）
+    vertical_accel_g = abs(vertical_accel_g);
+
     // G -> m/s^2
     float vertical_accel_mps2 = vertical_accel_g * 9.80665;
 
