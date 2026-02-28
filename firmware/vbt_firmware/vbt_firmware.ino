@@ -234,14 +234,6 @@ void loop() {
     // 重力ベクトル(gravity_x,y,z)は長さ1なので、これとの内積を取れば鉛直成分
     // ただしMadgwickの座標系定義に注意が必要。
     float vertical_accel_g = (lin_acc_x * gravity_x) + (lin_acc_y * gravity_y) + (lin_acc_z * gravity_z);
-    
-    // スマホケース等でデバイスが逆さま（Upside Down）に入っている場合、
-    // 加速度の「上方向」がセンサーにとってマイナス方向に結像することがある。
-    // Z軸（基板の表裏方向）の重力成分がマイナス（つまり裏面が下を向いている＝逆さま）の場合、
-    // 鉛直加速度の符号を反転させることで、どの向きでも「挙上＝プラス」に揃える。
-    if (gravity_z < 0) {
-        vertical_accel_g = -vertical_accel_g;
-    }
 
     // G -> m/s^2
     float vertical_accel_mps2 = vertical_accel_g * 9.80665;
