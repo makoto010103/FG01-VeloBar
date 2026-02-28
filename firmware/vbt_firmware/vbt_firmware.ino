@@ -190,17 +190,12 @@ void loop() {
     float acc_mag = sqrt(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
     bool acc_near_1g = (acc_mag > 0.95f && acc_mag < 1.05f); // 重力のみ≒静止
     
-    // 静止判定ロジック（高重量対応: 閾値を緩和）
+    // 静止判定ロジック（ロックアウトの微細な震えを強引に静止へ持ち込むため、閾値を緩和・判定を短縮）
     bool is_static = false;
-    // ジャイロ10dps未満 かつ 加速度の乱れが0.25G以内なら静止予備軍
-    if (gyro_mag < 10.0f && abs(acc_mag - 1.0f) < 0.25f) {
+    if (gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.25f) {
         zupt_static_frames++;
-        if (zupt_static_frames > 25) { 
+        if (zupt_static_frames > 15) { 
             is_static = true;
-        }
-        // 長時間静止している場合は姿勢を強力に補正
-        if (zupt_static_frames > 100) {
-            // 内部的に重力方向を再学習させる処理に相当
         }
     } else {
         zupt_static_frames = 0;
@@ -224,14 +219,26 @@ void loop() {
         velocity *= 0.8; // 強い減衰
         if (abs(velocity) < 0.01) velocity = 0;
     } else {
-        // ノイズしきい値を引き上げ、高重量時の体の震えを完全にカット
+        // 微小なノイズをカット
         if (abs(vertical_accel_mps2) < 0.06f) vertical_accel_mps2 = 0;
 
         velocity += vertical_accel_mps2 * dt;
         
-        // 速度の自然減衰（リーキー積分）を強化: 
-        // 挙上直後の残留速度を速やかに0へ引き戻す
-        velocity *= 0.995f; 
+        // 【バウンド対策】 非対称(Asymmetric)減衰アルゴリズム
+        if (velocity < 0.0f) {
+            // マイナス方向: アプリでは評価しないため超強力にブレーキ(1フレーム15%カット)
+            // これによりロックアウト直後の「バーの上下の振動」エネルギーを即座に殺す
+            velocity *= 0.85f; 
+        } else {
+            // 挙上中: 自然な減衰
+            velocity *= 0.992f; 
+            
+            // 挙上が終わり、速度が0に戻ろうとしている時のソフトランディング処理
+            // （速度が遅いのに下向きの加速度がかかっている時は、0付近に磁石のように吸い付かせる）
+            if (velocity < 0.20f && vertical_accel_mps2 < 0.0f) {
+                velocity *= 0.90f;
+            }
+        }
     }
 
     // --- 安全リミット (解除) ---
