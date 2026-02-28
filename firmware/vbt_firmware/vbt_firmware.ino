@@ -235,13 +235,13 @@ void loop() {
     // ただしMadgwickの座標系定義に注意が必要。
     float vertical_accel_g = (lin_acc_x * gravity_x) + (lin_acc_y * gravity_y) + (lin_acc_z * gravity_z);
     
-    // スマホケース等でデバイスが逆さま（Upside Down）や横向きに入っている場合、
-    // 重力ベクトルの向きと加速度の向きが逆転して `vertical_accel_g` がマイナスとして
-    // 算出され、後段の「マイナス方向の速度を即座に殺す」非対称減衰ロジックで挙上が打ち消されてしまう問題がある。
-    // 挙上（= 重力に逆らう方向の絶対的な加速度）のみを抽出するため、絶対値化する。
-    // （※ただし純粋な「下ろす」動作もプラスになってしまうが、VBTでは「挙上（コンセントリック）」のみを
-    // 評価し、エキセントリック（下ろす）時はZUPTや減衰で0になるため、実用上は絶対値で問題ない）
-    vertical_accel_g = abs(vertical_accel_g);
+    // スマホケース等でデバイスが逆さま（Upside Down）に入っている場合、
+    // 加速度の「上方向」がセンサーにとってマイナス方向に結像することがある。
+    // Z軸（基板の表裏方向）の重力成分がマイナス（つまり裏面が下を向いている＝逆さま）の場合、
+    // 鉛直加速度の符号を反転させることで、どの向きでも「挙上＝プラス」に揃える。
+    if (gravity_z < 0) {
+        vertical_accel_g = -vertical_accel_g;
+    }
 
     // G -> m/s^2
     float vertical_accel_mps2 = vertical_accel_g * 9.80665;
