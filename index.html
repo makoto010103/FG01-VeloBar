@@ -106,7 +106,8 @@
         .picker-container {
             position: relative;
             width: 100%;
-            height: 180px;
+            height: 230px;
+            /* Exactly 5 items (46px * 5) */
             overflow: hidden;
             border-radius: 14px;
             background: rgba(15, 23, 42, 0.7);
@@ -137,11 +138,11 @@
 
         .picker-selection-band {
             position: absolute;
-            top: 50%;
+            top: 92px;
+            /* Exactly 2 items down (46px * 2) */
             left: 0;
             right: 0;
             height: 46px;
-            transform: translateY(-50%);
             background: rgba(0, 243, 255, 0.08);
             border-top: 1px solid rgba(0, 243, 255, 0.3);
             border-bottom: 1px solid rgba(0, 243, 255, 0.3);
@@ -157,10 +158,8 @@
             scrollbar-width: none;
             -ms-overflow-style: none;
             /* IE/Edge対応 */
-            /* 180px height - 46px item / 2 = 67px */
-            padding-top: 67px;
-            padding-bottom: 100px;
-            /* Extra padding to ensure bottom items can be scrolled up */
+            /* Top and bottom padding must perfectly fit exactly 2 blank items (92px) */
+            padding: 92px 0;
         }
 
         .picker-scroll::-webkit-scrollbar {
@@ -1750,23 +1749,14 @@
             const items = scrollEl.querySelectorAll('.picker-item');
 
             function updateActive() {
-                // 絶対座標で画面中央（picker-containerの中心付近）に最も近い要素を探す
-                const containerRect = scrollEl.getBoundingClientRect();
-                const centerY = containerRect.top + containerRect.height / 2;
+                // Since container is exactly 5 items high (230px),
+                // selection band is exactly at top: 92px,
+                // and padding-top is exactly 92px,
+                // index = scrollTop / 46. It is mathematically perfect.
+                let activeIndex = Math.round(scrollEl.scrollTop / ITEM_H);
 
-                let minDiff = Infinity;
-                let activeIndex = 0;
-
-                items.forEach((item, i) => {
-                    const rect = item.getBoundingClientRect();
-                    const itemCenterY = rect.top + rect.height / 2;
-                    const diff = Math.abs(centerY - itemCenterY);
-
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        activeIndex = i;
-                    }
-                });
+                // Keep bounded just in case
+                activeIndex = Math.max(0, Math.min(items.length - 1, activeIndex));
 
                 items.forEach((item, i) => {
                     if (i === activeIndex) {
