@@ -157,7 +157,10 @@
             scrollbar-width: none;
             -ms-overflow-style: none;
             /* IE/Edge対応 */
-            padding: 67px 0;
+            /* 180px height - 46px item / 2 = 67px */
+            padding-top: 67px;
+            padding-bottom: 100px;
+            /* Extra padding to ensure bottom items can be scrolled up */
         }
 
         .picker-scroll::-webkit-scrollbar {
@@ -1742,16 +1745,26 @@
             const items = scrollEl.querySelectorAll('.picker-item');
 
             function updateActive() {
-                // The visual center we care about is the middle of the container
-                // Given padding-top is 67px, visually center index 0 is at scrollTop 0
-                // We just need to divide scrollTop by ITEM_H to find index.
-                let centerIndex = Math.round(scrollEl.scrollTop / ITEM_H);
+                // 絶対座標で画面中央（picker-containerの中心付近）に最も近い要素を探す
+                const containerRect = scrollEl.getBoundingClientRect();
+                const centerY = containerRect.top + containerRect.height / 2;
 
-                // Keep bounded
-                centerIndex = Math.max(0, Math.min(items.length - 1, centerIndex));
+                let minDiff = Infinity;
+                let activeIndex = 0;
 
                 items.forEach((item, i) => {
-                    if (i === centerIndex) {
+                    const rect = item.getBoundingClientRect();
+                    const itemCenterY = rect.top + rect.height / 2;
+                    const diff = Math.abs(centerY - itemCenterY);
+
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        activeIndex = i;
+                    }
+                });
+
+                items.forEach((item, i) => {
+                    if (i === activeIndex) {
                         item.classList.add('active');
                         if (onChangeCallback) onChangeCallback(item);
                     } else {
