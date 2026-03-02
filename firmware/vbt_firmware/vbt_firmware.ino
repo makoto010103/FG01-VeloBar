@@ -31,6 +31,11 @@ unsigned long lastUpdate = 0;
 const unsigned long BLE_INTERVAL_MS = 30;
 unsigned long lastBleTime = 0;
 
+// 【新規追加】 ZUPT連動型オフセット（ゼロ点）自動補正用変数
+float accel_offset_z = 0.0f;     // 学習・ロックされた鉛直加速度のノイズ（オフセット）
+float offset_accumulator = 0.0f; // 静止中の移動平均計算用アキュムレータ
+int offset_sample_count = 0;     // 静止中のサンプル数
+
 // 静止判定カウンター（グローバルスコープで正しく管理）
 int zupt_static_frames = 0;
 
@@ -256,6 +261,14 @@ void loop() {
     // 挙上中(velocity=1.0m/s等)はたとえZUPT条件を満たしても殺さない。
     if (acc_near_1g && gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.20f) {
         zupt_static_frames++;
+        
+        // --- ① ZUPT連動型のオフセット（ゼロ点）自動補正 ---
+        // 完全に静止している状態（ZUPT=True）の間、加速度の初期ノイズ（オフセット）を学習し続ける
+        offset_accumulator += vertical_accel_mps2;
+        offset_sample_count++;
+        // 最新の平均オフセット値を常に更新（移動平均）
+        accel_offset_z = offset_accumulator / (float)offset_sample_count;
+
         if (zupt_static_frames > 15) {
             // 速度が既に小さい時（静止しているかどうかの確認）のみ殺す
             // 挙上中に偶然条件が満たされても絶対に殺さない
@@ -269,7 +282,11 @@ void loop() {
            filter.updateIMU(0, 0, 0, ax_g, ay_g, az_g, dt);
         }
     } else {
+        // --- ① 動いている間（ZUPT=False）の処理 ---
+        // 動体検知で即座にオフセットの学習をストップし、最後に学習した「ゼロ点」をロック（固定）する
         zupt_static_frames = 0;
+        offset_accumulator = 0.0f;
+        offset_sample_count = 0;
     }
 
     // --- 3.5 回転検知 (Rotation Clamp) ---
@@ -278,36 +295,49 @@ void loop() {
     // (スマホケース等に入れると遊びで300dpsを超えることがあるため大幅緩和)
     if (gyro_mag > 800.0f) {
         vertical_accel_mps2 = 0;
-        // 回転中は速度を強烈に減衰させて異常値が残るのを防ぐ (0.95 -> 0.80)
+        // 回転中は速度を強烈に減衰させて異常値が残るのを防ぐ
         velocity *= 0.80f;
     }
 
-    // --- 4. 速度積分 ---
+    // --- 4. 速度積分 (ZUPTオフセット適用と動的リーキー積分) ---
     if (is_static) {
-        // Soft ZUPT: 速やかに0に減衰させる
-        // 加速度そのものも0とみなす
+        // ZUPT発動中: 速やかに0に減衰させる
         vertical_accel_mps2 = 0;
-        velocity *= 0.8; // 強い減衰
-        if (abs(velocity) < 0.01) velocity = 0;
+        velocity *= 0.80f; // 強い減衰
+        if (abs(velocity) < 0.01f) velocity = 0.0f;
     } else {
-        // 微小なノイズをカット
-        if (abs(vertical_accel_mps2) < 0.06f) vertical_accel_mps2 = 0;
-
-        velocity += vertical_accel_mps2 * dt;
+        // --- ① オフセット補正の適用 ---
+        // 計測された鉛直加速度から「ロックされたオフセット値（ゼロ点）」を引き算し、純粋な運動加速度のみを抽出
+        // この処理により、傾きやセンサー固有の定常ノイズによる架空の加速度を根絶する
+        float corrected_accel = vertical_accel_mps2 - accel_offset_z;
         
-        // 【バウンド対策】 非対称(Asymmetric)減衰アルゴリズム
+        // 極小ノイズのデッドゾーン（±0.06m/s^2未満の震えは無視）
+        if (abs(corrected_accel) < 0.06f) {
+            corrected_accel = 0.0f;
+        }
+
+        // 速度の積み上げ（積分）
+        velocity += corrected_accel * dt;
+        
+        // --- ② 動的リーキー積分（定数減衰の廃止） ---
+        // バーベルの挙動（上向きか下向きか）に合わせて、最適でフェアーなブレーキ係数を掛ける
+        
         if (velocity < 0.0f) {
-            // マイナス方向: アプリでは評価しないため超強力にブレーキ(1フレーム15%カット)
-            // これによりロックアウト直後の「バーの上下の振動」エネルギーを即座に殺す
-            velocity *= 0.85f; 
+            // 【下降・反射領域】
+            // VBTでは計測範囲外。次のレップに向けた計算上のドリフト（マイナスの借金）を完全に消し去るため超強烈なブレーキ
+            velocity *= 0.90f; 
         } else {
-            // 挙上中: 自然な減衰
-            velocity *= 0.992f; 
+            // 【挙上（コンセントリック）領域】 (velocity >= 0.0f)
             
-            // 挙上が終わり、速度が0に戻ろうとしている時のソフトランディング処理
-            // （速度が遅いのに下向きの加速度がかかっている時は、0付近に磁石のように吸い付かせる）
-            if (velocity < 0.20f && vertical_accel_mps2 < 0.0f) {
-                velocity *= 0.90f;
+            // 挙上が終わり、重力に負けて速度が0に戻ろうとしている（落下加速が始まっている）時のソフトランディング処理
+            if (velocity < 0.20f && corrected_accel < -0.5f) {
+                // 勢いが死んで落ち始めているフェーズ。ZUPTが発動するまでの浮き上がりを抑える。
+                velocity *= 0.95f;
+            } else {
+                // 【真の挙上フェーズ（粘りゾーン含む）】
+                // 係数を `0.9995` に設定し、2秒の粘るスローレップでも実力（積分速度）の80%以上を維持する
+                // 「薄皮一枚のセーフティネット」として働き、完全な1.0による無限発散（ドリフト）のみを器用に回避
+                velocity *= 0.9995f; 
             }
         }
     }
