@@ -1163,6 +1163,7 @@
             setBestVelocity = 0.0;
             repCountInSet = 0;
             setRepData = [];
+            rawLogBuffer = []; // v3.2 bugfix: clear raw log on reset!
             consecutiveWarningCount = 0;
             lastRepPeakVelocity = null;
             document.getElementById('rep-count').innerText = `0 / ${setTargetReps}`;
