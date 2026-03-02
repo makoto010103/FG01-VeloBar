@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v3.7.2</title>
+    <title>VeloBar v3.7.3</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -157,9 +157,15 @@
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none;
             -ms-overflow-style: none;
-            /* IE/Edge対応 */
-            /* Top and bottom padding must perfectly fit exactly 2 blank items (92px) */
-            padding: 92px 0;
+            /* Safari等のバグ対策: paddingの代わりに擬似要素を使う */
+        }
+
+        .picker-scroll::before,
+        .picker-scroll::after {
+            content: '';
+            display: block;
+            height: 92px;
+            /* Exactly 2 blank items */
         }
 
         .picker-scroll::-webkit-scrollbar {
@@ -732,7 +738,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.7.2</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v3.7.3</span></h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="bt-status" class="status-badge">未接続</span>
                 <span id="battery-status" class="status-badge"
@@ -1768,20 +1774,11 @@
                 });
             }
 
-            // 【追加】項目数が少ない場合、一番下の項目が真ん中まで上がってこられない（スクロール領域が足りない）問題を修正
-            // コンテナ(230px) - padding(92px*2) = 実質表示枠(46px)。しかし余白を持たせるためにはもう少し必要。
-            // 最もシンプルなWeb標準解決策: padding-bottomを動的に増やすか、中身の最小高さを保証する。
-            if (items.length < 5) {
-                // 項目数が少ない場合、不足分のダミーパディングを下部に追加して強制的にスクロール幅を確保
-                const missingItems = 5 - items.length;
-                const extraPadding = missingItems * ITEM_H;
-                scrollEl.style.paddingBottom = `calc(92px + ${extraPadding}px)`;
-            }
-
             scrollEl.addEventListener('scroll', updateActive, { passive: true });
 
             // Set default (wait for DOM paint and visibility)
             setTimeout(() => {
+                // 擬似要素(92px)が子要素として含まれるため、scrollTopの計算は変わらない
                 scrollEl.scrollTop = defaultIndex * ITEM_H;
                 updateActive();
             }, 50); // slight delay to ensure bounding rects are valid when modal shows
