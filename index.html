@@ -847,10 +847,16 @@
                 if (this.data.length > this.maxPoints) {
                     this.data.shift();
                 }
-                this.draw();
+
+                // Web Bluetoothの受信スレッドを詰まらせないために、描画をブラウザのレンダリングサイクルに委譲する
+                if (!this.pendingDraw) {
+                    this.pendingDraw = true;
+                    requestAnimationFrame(() => this.draw());
+                }
             }
 
             draw() {
+                this.pendingDraw = false;
                 const { width, height } = this.canvas;
                 const ctx = this.ctx;
 
@@ -1114,10 +1120,10 @@
 
         // Per-Exercise Velocity Thresholds
         const EXERCISE_THRESHOLDS = {
-            'SQ': { minPeak: 0.10, maxVelocity: 3.0 },  // スクワット（ケース等での減衰吸収のため極限まで低下）
+            'SQ': { minPeak: 0.15, maxVelocity: 3.0 },  // スクワット（ケース等の減衰吸収のため調整、ノイズ回避で0.15に）
             'DL': { minPeak: 0.15, maxVelocity: 2.5 },  // デッドリフト
-            'BP': { minPeak: 0.15, maxVelocity: 2.5 },  // ベンチプレス（遅い種目）
-            'CL': { minPeak: 0.50, maxVelocity: 3.5 },  // クリーン（爆発的）
+            'BP': { minPeak: 0.15, maxVelocity: 2.5 },  // ベンチプレス
+            'CL': { minPeak: 0.50, maxVelocity: 3.5 },  // クリーン
             'Other': { minPeak: 0.30, maxVelocity: 3.5 },  // その他
         };
 
@@ -1169,6 +1175,9 @@
 
 
         function handleStartSet() {
+            // Audio Contextのサスペンド復帰（iOS対策）
+            if (window.toneGen) window.toneGen.resume();
+
             if (isSetRunning || isCountingDown) {
                 // End gracefully or cancel countdown
                 endSet("STOP BOTTON PRESSED");
@@ -1359,9 +1368,10 @@
             const MIN_DURATION_MS = 350;
 
             // v3.0 Parameters
-            const START_THRESHOLD = 0.12; // Easier to start
-            const END_THRESHOLD = 0.05;   // Easier to end (reset)
+            const START_THRESHOLD = 0.15; // 0.10のノイズを拾わないように少し引き上げ
+            const END_THRESHOLD = 0.05;   // 確実に静止を捉える
             const toneGen = new ToneGenerator();
+            window.toneGen = toneGen; // Global reference for UI clicks
 
             const SERVICE_UUID = '19b10010-e8f2-537e-4f6c-d104768a1214';
             const CHARACTERISTIC_UUID = '19b10011-e8f2-537e-4f6c-d104768a1214';
@@ -1495,9 +1505,14 @@
                         if (currentVel < 0) currentVel = 0.0;
                         if (currentVel < 0.02) currentVel = 0.0;
 
-                        // Update Graph & Display
+                        // Update Graph (which uses requestAnimationFrame now)
                         graph.addPoint(currentVel);
-                        velDisplay.innerText = currentVel.toFixed(2);
+
+                        // Rate-limit DOM text updates to ~25Hz to drastically reduce CPU load on mobile 
+                        // DOM elements modifying every 20ms kills the browser UI thread
+                        if (rxCount % 2 === 0) {
+                            velDisplay.innerText = currentVel.toFixed(2);
+                        }
 
                         // Stillness Tracker (Threshold raised to 0.10 to ignore ground noise completely)
                         if (currentVel > 0.10) {
@@ -1528,16 +1543,16 @@
                                 if (currentVel > currentPeak) {
                                     currentPeak = currentVel;
                                 }
+                                // 閾値を超えている間は終了カウンターをリセット
+                                belowThresholdStartTime = 0;
                             }
-                            // 閾値を超えている間は終了カウンターをリセット
-                            belowThresholdStartTime = 0;
                         } else if (isMoving && currentVel < END_THRESHOLD) {
-                            // 終了判定の遅延 (100ms連続で閾値を下回った場合のみ終了とみなす)
+                            // 終了判定の遅延 (350ms連続で閾値を下回った場合のみ終了とみなす。スクワットのボトムパウズ対策)
                             if (belowThresholdStartTime === 0) {
                                 belowThresholdStartTime = now;
                             }
 
-                            if (now - belowThresholdStartTime > 100) {
+                            if (now - belowThresholdStartTime > 350) {
                                 // End of Rep Logic
                                 isMoving = false;
                                 belowThresholdStartTime = 0;
@@ -1545,10 +1560,10 @@
 
                                 const duration = now - moveStartTime;
                                 const exThresh = getExerciseThresholds();
-                                if (currentPeak > exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
-                                    // バウンスノイズフィルター: ベストの40%以下はノイズとみなす
-                                    if (setBestVelocity > 0 && repCountInSet >= 1 && currentPeak < setBestVelocity * 0.40) {
-                                        setLog(`⚠️ Bounce filtered: ${currentPeak.toFixed(2)} < 40% of best (${setBestVelocity.toFixed(2)})`, 'var(--text-dim)');
+                                if (currentPeak >= exThresh.minPeak && currentPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
+                                    // バウンスノイズフィルター: ベストの25%以下はノイズとみなす（40%は厳しすぎた）
+                                    if (setBestVelocity > 0 && repCountInSet >= 1 && currentPeak < setBestVelocity * 0.25) {
+                                        setLog(`⚠️ Bounce filtered: ${currentPeak.toFixed(2)} < 25% of best (${setBestVelocity.toFixed(2)})`, 'var(--text-dim)');
                                     } else {
                                         // Valid Rep or legitimate attempt
                                         lastRepTime = now; // 成功または正当なトライアルのみ不感時間を更新
@@ -1653,14 +1668,15 @@
                                     } // end bounce filter else
                                 } else {
                                     let reason = "";
-                                    if (currentPeak <= exThresh.minPeak) reason = `Peak too low (${currentPeak.toFixed(2)} < ${exThresh.minPeak})`;
+                                    if (currentPeak < exThresh.minPeak) reason = `Peak too low (${currentPeak.toFixed(2)} < ${exThresh.minPeak})`;
                                     else if (currentPeak >= exThresh.maxVelocity) reason = "Peak too high";
                                     else if (duration <= MIN_DURATION_MS) reason = `Too short (${duration}ms < ${MIN_DURATION_MS}ms)`;
                                     if (reason) setLog(`❌ ${reason}`, 'var(--text-dim)');
                                 }
                             }
                         } else if (isMoving) {
-                            // 速度がEND_THRESHOLD〜START_THRESHOLDの間: まだ動いている → 終了カウンターをリセット
+                            // 速度がEND_THRESHOLD〜START_THRESHOLDの間: まだ動いている → ピークは更新する。終了カウンターもリセット
+                            if (currentVel > currentPeak) currentPeak = currentVel;
                             belowThresholdStartTime = 0;
                         }
                     });
@@ -1752,6 +1768,9 @@
 
         // --- Confirm and close modal ---
         function confirmSetup() {
+            // Audio Contextのサスペンド復帰（iOS対策）
+            if (window.toneGen) window.toneGen.resume();
+
             const exActive = document.querySelector('#exercise-picker .picker-item.active');
             const wtActive = document.querySelector('#weight-picker .picker-item.active');
             const repActive = document.querySelector('#reps-picker .picker-item.active');
