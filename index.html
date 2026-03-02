@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v4.0.0</title>
+    <title>VeloBar v4.1.0</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -33,11 +33,12 @@
         }
 
         .modal-sheet {
-            width: 95%;
-            max-width: 440px;
+            width: 98%;
+            max-width: 600px;
+            /* Expanded for 5 pickers */
             background: rgba(30, 41, 59, 0.96);
             border-radius: 24px;
-            padding: 24px 20px 40px;
+            padding: 24px 16px 40px;
             box-shadow: 0 8px 40px rgba(0, 243, 255, 0.2);
             border: 1px solid rgba(0, 243, 255, 0.2);
             animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -178,17 +179,19 @@
             align-items: center;
             justify-content: center;
             scroll-snap-align: center;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
+            /* Slightly smaller to fit 5 cols */
             font-weight: 600;
             color: rgba(255, 255, 255, 0.5);
             transition: color 0.15s, font-size 0.15s;
             cursor: default;
             user-select: none;
+            text-align: center;
         }
 
         .picker-item.active {
             color: var(--primary);
-            font-size: 1.35rem;
+            font-size: 1.25rem;
             text-shadow: 0 0 12px rgba(0, 243, 255, 0.5);
         }
 
@@ -567,6 +570,81 @@
             color: var(--primary);
         }
 
+        /* Rest Timer Overlay */
+        #rest-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            z-index: 900;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        #rest-overlay.active {
+            display: flex;
+        }
+
+        .rest-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+
+        .rest-time {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 25vw;
+            font-weight: 900;
+            color: var(--primary);
+            text-shadow: 0 0 40px rgba(0, 243, 255, 0.4);
+            line-height: 1;
+        }
+
+        .rest-time.ready {
+            color: var(--good);
+            text-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
+        }
+
+        .btn-skip-rest {
+            margin-top: 40px;
+            padding: 16px 40px;
+            font-size: 1.2rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-skip-rest.ready {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            color: #0f172a;
+            box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+            animation: pulse 1.5s infinite;
+        }
+
+        .set-progress {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: var(--primary);
+            padding: 4px 12px;
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 12px;
+            letter-spacing: 1px;
+        }
+
         /* Set Summary Overlay */
         .summary-overlay {
             position: fixed;
@@ -704,17 +782,37 @@
                     <div style="font-size:0.7rem;color:var(--text-dim);">kg</div>
                 </div>
                 <!-- Target Reps Picker -->
-                <div class="picker-wrap" style="flex:0.8;">
-                    <div class="picker-label">目標回数</div>
+                <div class="picker-wrap">
+                    <div class="picker-label">Reps</div>
                     <div class="picker-container">
                         <div class="picker-selection-band"></div>
                         <div class="picker-scroll" id="reps-picker">
+                            <!-- 1-15 generated via JS -->
                         </div>
                     </div>
-                    <div style="font-size:0.7rem;color:var(--text-dim);">reps</div>
+                </div>
+
+                <div class="picker-wrap">
+                    <div class="picker-label">Sets</div>
+                    <div class="picker-container">
+                        <div class="picker-selection-band"></div>
+                        <div class="picker-scroll" id="sets-picker">
+                            <!-- 1-10 generated via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="picker-wrap">
+                    <div class="picker-label">Rest</div>
+                    <div class="picker-container">
+                        <div class="picker-selection-band"></div>
+                        <div class="picker-scroll" id="rest-picker">
+                            <!-- e.g. 1.0, 1.5, 2.0... generated via JS -->
+                        </div>
+                    </div>
                 </div>
             </div>
-            <button class="btn-start" onclick="confirmSetup()">START ▶</button>
+            <button class="btn-start" onclick="closeStartupModal()">RECORD SET</button>
         </div>
     </div>
 
@@ -731,6 +829,13 @@
         </div>
     </div>
 
+    <!-- REST TIMER OVERLAY -->
+    <div id="rest-overlay">
+        <div class="rest-title" id="rest-title-text">REST TIME</div>
+        <div class="rest-time" id="rest-time-display">2:00</div>
+        <button class="btn-skip-rest" id="btn-skip-rest" onclick="skipRest()">SKIP</button>
+    </div>
+
     <!-- Countdown Overlay -->
     <div id="countdown-overlay">
         <span id="countdown-number">5</span>
@@ -738,7 +843,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v4.0.0</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v4.1.0</span></h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="bt-status" class="status-badge">未接続</span>
                 <span id="battery-status" class="status-badge"
@@ -769,6 +874,12 @@
                     <option value="OFF">なし</option>
                 </select>
             </div>
+        </div>
+
+        <!-- Metric Card & Sub Metrics (Added Set Progress) -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <div id="set-progress" class="set-progress">SET 1 / 3</div>
+            <!-- Alert is now absolutely positioned inside the card below -->
         </div>
 
         <!-- Main Metric ID for JS reference -->
@@ -1157,12 +1268,16 @@
             return EXERCISE_THRESHOLDS[currentExercise] || EXERCISE_THRESHOLDS['Other'];
         }
 
-        // State Variables
-        // --- Application Set State ---
         let currentExercise = 'SQ';
         let currentWeight = 100;
         let setTargetReps = 10;
+        let setTargetSets = 3;
+        let currentSetCount = 1;
+        let restMinutes = 2.0;
+
         let isSetRunning = false;
+        let isResting = false;
+        let restTimer = null;
 
         let currentMode = 'POWER';
         let setBestVelocity = 0.0;
@@ -1216,6 +1331,10 @@
                 document.getElementById('weight-picker').scrollTop = 24 * 46; // 60kg = 24 * 46
                 document.getElementById('reps-picker').scrollTop = 9 * 46; // 10reps = 9 * 46
 
+                // Add defaults for new pickers
+                document.getElementById('sets-picker').scrollTop = 2 * 46; // 3 sets = index 2
+                document.getElementById('rest-picker').scrollTop = 2 * 46; // 2.0 min = index 2
+
                 // Small delay to allow display to apply before opacity transition
                 setTimeout(() => {
                     document.getElementById('startup-modal').style.opacity = '1';
@@ -1242,11 +1361,79 @@
             btn.disabled = false;
 
             if (reason !== "STOP BOTTON PRESSED" || setRepData.length > 0) {
-                showSummary(reason);
+                setLog(`=== SET ${currentSetCount} END ===`, '#f59e0b');
+
+                // Highlight the end of a set in the table
+                const logBody = document.getElementById('log-body');
+                logBody.insertAdjacentHTML('afterbegin',
+                    `<tr>
+                        <td colspan="4" style="text-align:center; padding: 4px; background:rgba(255,255,255,0.05); color:var(--text-dim); font-size:0.75rem;">
+                            --- SET ${currentSetCount} COMPLETE ---
+                        </td>
+                    </tr>`
+                );
+
+                // Multi-set logic
+                if (currentSetCount < setTargetSets) {
+                    startRestTimer();
+                } else {
+                    showSummary(reason);
+                }
             } else {
                 // If cancelled before any reps, just reset
                 resetSetState();
             }
+        }
+
+        // --- REST TIMER LOGIC ---
+        function startRestTimer() {
+            isResting = true;
+            const overlay = document.getElementById('rest-overlay');
+            const timeDisplay = document.getElementById('rest-time-display');
+            const skipBtn = document.getElementById('btn-skip-rest');
+
+            overlay.classList.add('active');
+            skipBtn.classList.remove('ready');
+            skipBtn.innerText = "SKIP REST";
+            timeDisplay.classList.remove('ready');
+
+            let remainingTotalSeconds = Math.floor(restMinutes * 60);
+
+            function updateDisplay() {
+                const m = Math.floor(remainingTotalSeconds / 60);
+                const s = remainingTotalSeconds % 60;
+                timeDisplay.innerText = `${m}:${s.toString().padStart(2, '0')}`;
+            }
+
+            updateDisplay();
+
+            if (restTimer) clearInterval(restTimer);
+            restTimer = setInterval(() => {
+                remainingTotalSeconds--;
+                if (remainingTotalSeconds <= 0) {
+                    // Rest Completed
+                    clearInterval(restTimer);
+                    timeDisplay.innerText = "0:00";
+                    timeDisplay.classList.add('ready');
+                    window.toneGen.playSuccess(); // Ping
+                    skipBtn.classList.add('ready');
+                    skipBtn.innerText = "NEXT SET READY ▶";
+                } else {
+                    updateDisplay();
+                }
+            }, 1000);
+        }
+
+        window.skipRest = function () {
+            if (restTimer) clearInterval(restTimer);
+            isResting = false;
+            document.getElementById('rest-overlay').classList.remove('active');
+
+            // Advance to next set
+            currentSetCount++;
+
+            // Auto start the next rack-up countdown
+            startSetWithCountdown();
         }
 
         // UI Helpers
@@ -1831,6 +2018,32 @@
             }
         })();
 
+        // --- Sets picker: 1 to 10 ---
+        (function buildSetsPicker() {
+            const scroll = document.getElementById('sets-picker');
+            scroll.innerHTML = '';
+            for (let s = 1; s <= 10; s++) {
+                const div = document.createElement('div');
+                div.className = 'picker-item';
+                div.dataset.value = s;
+                div.innerHTML = `${s}`;
+                scroll.appendChild(div);
+            }
+        })();
+
+        // --- Rest picker: 1.0 to 5.0 (step 0.5) ---
+        (function buildRestPicker() {
+            const scroll = document.getElementById('rest-picker');
+            scroll.innerHTML = '';
+            for (let r = 1.0; r <= 5.0; r += 0.5) {
+                const div = document.createElement('div');
+                div.className = 'picker-item';
+                div.dataset.value = r;
+                div.innerHTML = `${r.toFixed(1)} <span class="picker-suffix">min</span>`;
+                scroll.appendChild(div);
+            }
+        })();
+
         // --- Generic picker active-item tracking ---
         function initPicker(scrollEl, onChangeCallback, defaultIndex = 0) {
             const ITEM_H = 46;
@@ -1872,11 +2085,15 @@
             exHint.textContent = EXERCISE_LABELS[item.dataset.value] || '';
         }, 0); // SQ=0
 
-        // --- Init weight picker (default: 60kg = index 24) ---
-        initPicker(document.getElementById('weight-picker'), null, 24); // 24 * 2.5 = 60kg
-
         // --- Init reps picker (default: 10 reps = index 9) ---
         initPicker(document.getElementById('reps-picker'), null, 9); // default 10 reps (index 9)
+
+        // --- Init sets picker (default: 3 sets = index 2) ---
+        initPicker(document.getElementById('sets-picker'), null, 2);
+
+        // --- Init rest picker (default: 2.0 min = index 2) ---
+        // 1.0, 1.5, 2.0 -> index 2
+        initPicker(document.getElementById('rest-picker'), null, 2);
 
         // --- Confirm and close modal ---
         function confirmSetup() {
@@ -1886,6 +2103,8 @@
             const exActive = document.querySelector('#exercise-picker .picker-item.active');
             const wtActive = document.querySelector('#weight-picker .picker-item.active');
             const repActive = document.querySelector('#reps-picker .picker-item.active');
+            const setsActive = document.querySelector('#sets-picker .picker-item.active');
+            const restActive = document.querySelector('#rest-picker .picker-item.active');
 
             if (exActive) {
                 currentExercise = exActive.dataset.value;
@@ -1896,6 +2115,17 @@
             if (repActive) {
                 setTargetReps = parseInt(repActive.dataset.value);
             }
+            if (setsActive) {
+                setTargetSets = parseInt(setsActive.dataset.value);
+            }
+            if (restActive) {
+                restMinutes = parseFloat(restActive.dataset.value);
+            }
+
+            // Hard reset workout state on new configuration
+            currentSetCount = 1;
+            document.getElementById('log-body').innerHTML = ""; // Clear logs for new workout
+            document.getElementById('set-progress').innerText = `SET ${currentSetCount} / ${setTargetSets}`;
 
             // Update UI info
             const modeName = document.getElementById('mode-select').options[document.getElementById('mode-select').selectedIndex].text;
@@ -1915,7 +2145,8 @@
             if (isCountingDown) return;
             isCountingDown = true;
 
-            resetSetState(); // Reset UI immediately
+            resetSetState(); // Reset UI immediately (velocity, fatigue)
+            document.getElementById('set-progress').innerText = `SET ${currentSetCount} / ${setTargetSets}`;
 
             // Setup UI for countdown
             const btn = document.getElementById('main-start-btn');
