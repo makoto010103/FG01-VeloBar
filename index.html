@@ -1768,6 +1768,16 @@
                 });
             }
 
+            // 【追加】項目数が少ない場合、一番下の項目が真ん中まで上がってこられない（スクロール領域が足りない）問題を修正
+            // コンテナ(230px) - padding(92px*2) = 実質表示枠(46px)。しかし余白を持たせるためにはもう少し必要。
+            // 最もシンプルなWeb標準解決策: padding-bottomを動的に増やすか、中身の最小高さを保証する。
+            if (items.length < 5) {
+                // 項目数が少ない場合、不足分のダミーパディングを下部に追加して強制的にスクロール幅を確保
+                const missingItems = 5 - items.length;
+                const extraPadding = missingItems * ITEM_H;
+                scrollEl.style.paddingBottom = `calc(92px + ${extraPadding}px)`;
+            }
+
             scrollEl.addEventListener('scroll', updateActive, { passive: true });
 
             // Set default (wait for DOM paint and visibility)
