@@ -1202,6 +1202,11 @@
             } else {
                 // Show modal
                 document.getElementById('startup-modal').style.display = 'flex';
+                // Force scroll snaps to defaults once visible
+                document.getElementById('exercise-picker').scrollTop = 0; // SQ = 0
+                document.getElementById('weight-picker').scrollTop = 24 * 46; // 60kg = 24 * 46
+                document.getElementById('reps-picker').scrollTop = 9 * 46; // 10reps = 9 * 46
+
                 // Small delay to allow display to apply before opacity transition
                 setTimeout(() => {
                     document.getElementById('startup-modal').style.opacity = '1';
@@ -1775,11 +1780,11 @@
 
             scrollEl.addEventListener('scroll', updateActive, { passive: true });
 
-            // Set default
-            requestAnimationFrame(() => {
+            // Set default (wait for DOM paint and visibility)
+            setTimeout(() => {
                 scrollEl.scrollTop = defaultIndex * ITEM_H;
                 updateActive();
-            });
+            }, 50); // slight delay to ensure bounding rects are valid when modal shows
         }
 
         // --- Init exercise picker (default: SQ = index 0) ---
