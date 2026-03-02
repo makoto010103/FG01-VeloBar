@@ -27,8 +27,8 @@ Madgwick          filter;
 float velocity = 0.0;
 unsigned long lastUpdate = 0;
 
-// 50Hz (20ms) Update Rate for smoother graphs and better peak capture
-const unsigned long BLE_INTERVAL_MS = 20;
+// 33Hz (30ms) Update Rate: スマホのWeb Bluetoothが過負荷でパケットロス（数十秒のフリーズ）を起こすのを防ぐための最適な間隔
+const unsigned long BLE_INTERVAL_MS = 30;
 unsigned long lastBleTime = 0;
 
 // 静止判定カウンター（グローバルスコープで正しく管理）
@@ -244,31 +244,36 @@ void loop() {
     
     // 加速度の大きさ（重力込み）で動作中かどうかも判定
     float acc_mag = sqrt(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
-    // 重力のみ≒静止（±0.03Gの狭い枠）
-    bool acc_near_1g = (acc_mag > 0.97f && acc_mag < 1.03f); 
+    bool acc_near_1g = (acc_mag > 0.97f && acc_mag < 1.03f); // 重力のみ≒静止
     
     // 静止判定ロジック
     bool is_static = false;
-    // v3.6.3: 3Dプリントケース等の「ブレが全くない」環境での高重量スクワットでは、
-    // 加速度が常に1.0G付近（0.01G程度の加速）に留まるため、加速度だけで静止判定すると動作中も静止扱いになる。
-    // そのため、ジャイロ（角速度）の閾値を 15.0dps から 3.0dps へと極限まで厳しくする。
-    // 人間がバーを担いでいる以上、微小なブレで必ず 3.0dps 以上は出るため、これで「ラックにかかっている時（完全静止）」のみZUPTが発動する。
-    if (acc_near_1g && gyro_mag < 3.0f && abs(acc_mag - 1.0f) < 0.20f) {
+    // v3.7: 「速度連動ZUPT」方式
+    // 問題1: gyro<3.0dpsは厳しすぎて、レップ間の休撓中（呼吸・体の揺れで>3dps）にZUPTが発動せず、速度が0.5〜0.9m/sに張り付くが発生。
+    // 問題2: gyro<15.0dpsに戻すと、スクワット中の滑らかな加速（0.01G）でZUPTが発動して挙上中の速度を殺す。
+    // 解決策: gyro<15.0dpsに戻し、だが「velocityが既に小さい時だけこのクランプを発動」する。
+    // 具体的に: velocity < 0.15m/sの時のみZUPTが速度を殺す。
+    // 挙上中(velocity=1.0m/s等)はたとえZUPT条件を満たしても殺さない。
+    if (acc_near_1g && gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.20f) {
         zupt_static_frames++;
-        if (zupt_static_frames > 15) { 
-            is_static = true;
+        if (zupt_static_frames > 15) {
+            // 速度が既に小さい時（静止しているかどうかの確認）のみ殺す
+            // 挙上中に偶然条件が満たされても絶対に殺さない
+            if (abs(velocity) < 0.15f) {
+                is_static = true;
+            }
         }
         
-        // 異常リセット: もし長時間静止判定が続いた場合は、Madgwickの姿勢を徐々に強制リセット（ドリフト対策とスタック防止）
+        // 長時間静止判定が続いた場合はMadgwickを重力方向だけで座標リセット（ドリフト対策）
         if (zupt_static_frames > 100) {
-           filter.updateIMU(0, 0, 0, ax_g, ay_g, az_g, dt); // ジャイロを0とみなして重力方向だけを信用させる
+           filter.updateIMU(0, 0, 0, ax_g, ay_g, az_g, dt);
         }
     } else {
         zupt_static_frames = 0;
     }
 
     // --- 3.5 回転検知 (Rotation Clamp) ---
-    // バーベルの回転(Rolling)による誤検知を防ぐ
+    // バーベルの回転(Rolling)による誤検知を防ぎ゙
     // 800dps以上の超高速回転は通常の挙上動作ではないとみなす
     // (スマホケース等に入れると遊びで300dpsを超えることがあるため大幅緩和)
     if (gyro_mag > 800.0f) {
