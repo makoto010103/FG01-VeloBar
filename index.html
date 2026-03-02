@@ -1000,7 +1000,7 @@
             }
         }
 
-        // --- 音声フィードバック ---
+        // --- 音声フィードバック (Modern Synthesizer) ---
         class ToneGenerator {
             constructor() {
                 this.ctx = null;
@@ -1023,6 +1023,33 @@
                 }
             }
 
+            // ヘルパー: 指定タイミングで2つの波形を重ねて鳴らす (FMライクなレイヤー)
+            playOsc(type1, type2, freq1, freq2, detune, startTime, duration, vol) {
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc1.type = type1;
+                osc2.type = type2;
+                osc1.frequency.value = freq1;
+                osc2.frequency.value = freq2;
+                osc2.detune.value = detune;
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                // エンベロープ (ADSR)
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(vol, startTime + 0.02); // Attack
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration); // Decay / Release
+
+                osc1.start(startTime);
+                osc2.start(startTime);
+                osc1.stop(startTime + duration);
+                osc2.stop(startTime + duration);
+            }
+
             playSuccess() {
                 if (this.soundType === 'OFF') return;
 
@@ -1030,47 +1057,53 @@
                 this.resume();
 
                 const now = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
 
                 if (this.soundType === 'GAME') {
-                    // 8-bit Coin Sound (louder)
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(988, now); // B5
-                    osc.frequency.setValueAtTime(1319, now + 0.1); // E6
-                    gain.gain.setValueAtTime(0.4, now);
-                    gain.gain.linearRampToValueAtTime(0.4, now + 0.1);
-                    gain.gain.linearRampToValueAtTime(0, now + 0.4);
-                    osc.start(now);
-                    osc.stop(now + 0.4);
+                    // モダンなゲームの「レベルアップ/決定」のようなキラキラしたアルペジオ
+                    [1318.51, 1567.98, 2093.00].forEach((freq, i) => { // E6, G6, C7
+                        this.playOsc('square', 'sine', freq, freq * 1.01, 5, now + i * 0.08, 0.4, 0.2);
+                    });
                 } else if (this.soundType === 'BEEP') {
-                    // Simple Short Beep (louder)
+                    // 爽快な「ピポッ」という上昇音
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(1000, now);
-                    gain.gain.setValueAtTime(0.4, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                    osc.frequency.setValueAtTime(880, now);    // A5
+                    osc.frequency.setValueAtTime(1318.51, now + 0.08); // E6
+
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.5, now + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
                     osc.start(now);
-                    osc.stop(now + 0.15);
+                    osc.stop(now + 0.25);
                 } else if (this.soundType === 'MECHANICAL') {
-                    // Click / Mechanical (louder)
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(150, now);
-                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
-                    gain.gain.setValueAtTime(0.8, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-                    osc.start(now);
-                    osc.stop(now + 0.08);
+                    // 近未来UIのような「カポリッ」という軽快で有機的なクリック
+                    const osc1 = this.ctx.createOscillator();
+                    const gain1 = this.ctx.createGain();
+                    osc1.connect(gain1);
+                    gain1.connect(this.ctx.destination);
+
+                    osc1.type = 'triangle';
+                    // 急激なピッチダウンによるアタック感の強調（キックドラムの応用）
+                    osc1.frequency.setValueAtTime(800, now);
+                    osc1.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+
+                    gain1.gain.setValueAtTime(0, now);
+                    gain1.gain.linearRampToValueAtTime(0.8, now + 0.01);
+                    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+                    osc1.start(now);
+                    osc1.stop(now + 0.1);
                 } else {
-                    // BELL (Default) - Sophisticated Ding (louder)
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, now);
-                    osc.frequency.exponentialRampToValueAtTime(440, now + 0.15);
-                    gain.gain.setValueAtTime(0.5, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-                    osc.start(now);
-                    osc.stop(now + 0.6);
+                    // BELL (Default) - 心地よいホテルのベルのような透明感のある和音と余韻
+                    // C6 と E6 をデチューンして重ねる
+                    this.playOsc('sine', 'sine', 1046.50, 1318.51, 10, now, 0.8, 0.4);
+                    // 少し遅れて上の G6 を鳴らして広がりを出す
+                    this.playOsc('sine', 'triangle', 1567.98, 1567.98, -5, now + 0.05, 1.2, 0.2);
                 }
             }
 
@@ -1079,18 +1112,9 @@
                 if (!this.ctx) this.init();
                 this.resume();
                 const now = this.ctx.currentTime;
-                // Double beep warning
+                // 注意を引くが不快すぎない、柔らかな「ポン・ポン」という警告
                 for (let i = 0; i < 2; i++) {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(660, now + i * 0.2);
-                    gain.gain.setValueAtTime(0.5, now + i * 0.2);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.2 + 0.12);
-                    osc.start(now + i * 0.2);
-                    osc.stop(now + i * 0.2 + 0.12);
+                    this.playOsc('triangle', 'sine', 440, 440, 0, now + i * 0.25, 0.25, 0.6);
                 }
             }
 
@@ -1099,20 +1123,10 @@
                 if (!this.ctx) this.init();
                 this.resume();
                 const now = this.ctx.currentTime;
-                // Urgent alarm: 4 rapid high-pitched beeps
-                for (let i = 0; i < 4; i++) {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(1200, now + i * 0.15);
-                    osc.frequency.setValueAtTime(800, now + i * 0.15 + 0.05);
-                    gain.gain.setValueAtTime(0.6, now + i * 0.15);
-                    gain.gain.linearRampToValueAtTime(0, now + i * 0.15 + 0.1);
-                    osc.start(now + i * 0.15);
-                    osc.stop(now + i * 0.15 + 0.1);
-                }
+                // 緊急だが耳を劈かない「タロラリッ（低下和音）」のような終了音
+                [880, 740, 659, 523.25].forEach((freq, i) => { // A5, F#5, E5, C5
+                    this.playOsc('square', 'triangle', freq, freq, 0, now + i * 0.1, 0.2, 0.3);
+                });
             }
         }
 
