@@ -1528,9 +1528,9 @@
                         }
 
                         // --- Rep Detection Logic ---
-                        // ラックアップ誤認防止: カウントダウン中はRep検出しない
+                        // 測定中でない場合やカウントダウン中はRep検出しない
                         const now = Date.now();
-                        if (isCountingDown) return;
+                        if (!isSetRunning || isCountingDown) return;
 
                         // Start of Rep
                         if (currentVel > START_THRESHOLD) {
