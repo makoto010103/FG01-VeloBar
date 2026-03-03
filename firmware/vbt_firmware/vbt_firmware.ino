@@ -253,28 +253,29 @@ void loop() {
     
     // 静止判定ロジック
     bool is_static = false;
-    // v3.7: 「速度連動ZUPT」方式
-    // 問題1: gyro<3.0dpsは厳しすぎて、レップ間の休撓中（呼吸・体の揺れで>3dps）にZUPTが発動せず、速度が0.5〜0.9m/sに張り付くが発生。
-    // 問題2: gyro<15.0dpsに戻すと、スクワット中の滑らかな加速（0.01G）でZUPTが発動して挙上中の速度を殺す。
-    // 解決策: gyro<15.0dpsに戻し、だが「velocityが既に小さい時だけこのクランプを発動」する。
-    // 具体的に: velocity < 0.15m/sの時のみZUPTが速度を殺す。
-    // 挙上中(velocity=1.0m/s等)はたとえZUPT条件を満たしても殺さない。
+    // v4.2: ZUPTドリフト修正版
+    // 旧バグ: velocity > 0.15の時ZUPTが速度を殺せず、静止中でもドリフトが無限に蓄積していた
+    // 修正: 短時間(15フレーム)は速度ガード付き、長時間(200フレーム=1秒)は無条件でkill
     if (acc_near_1g && gyro_mag < 15.0f && abs(acc_mag - 1.0f) < 0.20f) {
         zupt_static_frames++;
         
         // --- ① ZUPT連動型のオフセット（ゼロ点）自動補正 ---
-        // 完全に静止している状態（ZUPT=True）の間、加速度の初期ノイズ（オフセット）を学習し続ける
         offset_accumulator += vertical_accel_mps2;
         offset_sample_count++;
-        // 最新の平均オフセット値を常に更新（移動平均）
         accel_offset_z = offset_accumulator / (float)offset_sample_count;
 
         if (zupt_static_frames > 15) {
-            // 速度が既に小さい時（静止しているかどうかの確認）のみ殺す
-            // 挙上中に偶然条件が満たされても絶対に殺さない
+            // 通常のZUPT: 速度が小さい時のみ（挙上中の誤殺を防止）
             if (abs(velocity) < 0.15f) {
                 is_static = true;
             }
+        }
+        
+        // 【v4.2 新規】緊急ドリフト補正: 1秒以上連続で静止判定 → 絶対に動いていない
+        // velocityの値に関係なく無条件で静止確定 & 速度をゼロに叩き落とす
+        if (zupt_static_frames > 200) {
+            is_static = true;
+            velocity = 0.0f; // 即座にゼロ（0.80減衰を待たず完全リセット）
         }
         
         // 長時間静止判定が続いた場合はMadgwickを重力方向だけで座標リセット（ドリフト対策）
@@ -283,19 +284,14 @@ void loop() {
         }
     } else {
         // --- ① 動いている間（ZUPT=False）の処理 ---
-        // 動体検知で即座にオフセットの学習をストップし、最後に学習した「ゼロ点」をロック（固定）する
         zupt_static_frames = 0;
         offset_accumulator = 0.0f;
         offset_sample_count = 0;
     }
 
     // --- 3.5 回転検知 (Rotation Clamp) ---
-    // バーベルの回転(Rolling)による誤検知を防ぎ゙
-    // 800dps以上の超高速回転は通常の挙上動作ではないとみなす
-    // (スマホケース等に入れると遊びで300dpsを超えることがあるため大幅緩和)
     if (gyro_mag > 800.0f) {
         vertical_accel_mps2 = 0;
-        // 回転中は速度を強烈に減衰させて異常値が残るのを防ぐ
         velocity *= 0.80f;
     }
 
@@ -307,13 +303,11 @@ void loop() {
         if (abs(velocity) < 0.01f) velocity = 0.0f;
     } else {
         // --- ① オフセット補正の適用 ---
-        // 計測された鉛直加速度から「ロックされたオフセット値（ゼロ点）」を引き算し、純粋な運動加速度のみを抽出
-        // この処理により、傾きやセンサー固有の定常ノイズによる架空の加速度を根絶する
         float corrected_accel = vertical_accel_mps2 - accel_offset_z;
         
-        // 極小ノイズのデッドゾーン（±0.02m/s^2未満の震えは無視）
-        // v4.1: 0.06は遅いスクワットの実加速度(0.03-0.05G≈0.3-0.5m/s^2)を殺していたため大幅に緩和
-        if (abs(corrected_accel) < 0.02f) {
+        // 極小ノイズのデッドゾーン（±0.04m/s^2未満の震えは無視）
+        // v4.2: 0.02は静止ドリフトに弱すぎ、0.06は遅いスクワットを殺す → 0.04で妥協
+        if (abs(corrected_accel) < 0.04f) {
             corrected_accel = 0.0f;
         }
 
