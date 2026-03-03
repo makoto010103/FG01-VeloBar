@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v4.2.4</title>
+    <title>VeloBar v4.2.5</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -1373,6 +1373,9 @@
                     </tr>`
                 );
 
+                // セット終了時にCSVを自動コピー
+                autoExportCSV();
+
                 // Multi-set logic
                 if (currentSetCount < setTargetSets) {
                     startRestTimer();
@@ -1529,6 +1532,49 @@
             });
             clipboard(csv);
         };
+
+        // セット終了時の自動CSVエクスポート（alertなしでサイレントコピー）
+        function autoExportCSV() {
+            const exercise = currentExercise || "NoName";
+            const load = currentWeight || "0";
+
+            if (rawLogBuffer.length > 0) {
+                let csv = "Exercise,Weight(kg),Time,Velocity(m/s)\n";
+                rawLogBuffer.forEach(entry => {
+                    csv += `${exercise},${load},${entry.time},${entry.velocity.toFixed(3)}\n`;
+                });
+                silentClipboard(csv);
+            }
+        }
+
+        function silentClipboard(csv) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(csv).then(() => {
+                    showToast("📋 CSVをコピーしました");
+                }).catch(() => {
+                    // フォールバック（権限エラー時）
+                    fallbackCopyTextToClipboard(csv);
+                    showToast("📋 CSVをコピーしました");
+                });
+            } else {
+                fallbackCopyTextToClipboard(csv);
+                showToast("📋 CSVをコピーしました");
+            }
+        }
+
+        // 一時的なトースト通知（3秒で消える）
+        function showToast(message) {
+            let toast = document.getElementById('csv-toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'csv-toast';
+                toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(34,197,94,0.9);color:#fff;padding:10px 24px;border-radius:20px;font-size:0.9rem;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+                document.body.appendChild(toast);
+            }
+            toast.innerText = message;
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+        }
 
         function clipboard(csv) {
             if (navigator.clipboard) {
