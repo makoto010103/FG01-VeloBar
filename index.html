@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v4.2.7</title>
+    <title>VeloBar v4.2.8</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -1484,7 +1484,8 @@
 
 
         // Duration Tuning
-        const MIN_DURATION_MS = 150;
+        // v4.2.8: START_THRESHOLDを上げた結果、爆発的な挙上（山の幅が狭い）が開始判定の遅れにより150ms未満とみなされ棄却される問題に対応
+        const MIN_DURATION_MS = 100;
 
         // 不感時間: 0.5秒（レップとレップの間の最小インターバル。ノイズ破棄からの復帰を早めるため1000->500に短縮）
         const LOCKOUT_MS = 500;
