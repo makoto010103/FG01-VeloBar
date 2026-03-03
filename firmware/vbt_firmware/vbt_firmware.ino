@@ -305,9 +305,9 @@ void loop() {
         // --- ① オフセット補正の適用 ---
         float corrected_accel = vertical_accel_mps2 - accel_offset_z;
         
-        // 極小ノイズのデッドゾーン（±0.04m/s^2未満の震えは無視）
-        // v4.2: 0.02は静止ドリフトに弱すぎ、0.06は遅いスクワットを殺す → 0.04で妥協
-        if (abs(corrected_accel) < 0.04f) {
+        // 極小ノイズのデッドゾーン（±0.05m/s^2未満の震えは無視）
+        // v4.2.7: BPのラックアップ振動を少し吸収するため0.04->0.05
+        if (abs(corrected_accel) < 0.05f) {
             corrected_accel = 0.0f;
         }
 
