@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v4.2.3</title>
+    <title>VeloBar v4.2.4</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -1484,6 +1484,9 @@
         // v4.1: 300msでは遅いスクワット(0.3m/s級)のシグナルが短すぎて棄却されていた
         const MIN_DURATION_MS = 150;
 
+        // 不感時間: 1.0秒（レップとレップの間の最小インターバル）
+        const LOCKOUT_MS = 1000;
+
         // v3.0 Parameters - Adjusted for Sensitivity
         const START_THRESHOLD = 0.12;
         const END_THRESHOLD = 0.02; // v4.1: 0.05では信号が消えるのが早すぎてデータが取れない
@@ -1582,15 +1585,8 @@
             // Stillness Detection for Reset
             let lastMotionTime = Date.now();
 
-            // Params
-            // 不感時間: 1.0秒
-            const LOCKOUT_MS = 1000;
-            // 最小継続時間: 0.35秒以上動き続けていない場合はノイズとみなす
-            const MIN_DURATION_MS = 350;
-
-            // v3.0 Parameters
-            const START_THRESHOLD = 0.15; // 0.10のノイズを拾わないように少し引き上げ
-            const END_THRESHOLD = 0.05;   // 確実に静止を捉える
+            // Params - 使用するのはグローバルスコープの START_THRESHOLD, END_THRESHOLD, MIN_DURATION_MS, LOCKOUT_MS
+            // (load外で定義済み。ここでは再定義しない)
             const toneGen = new ToneGenerator();
             window.toneGen = toneGen; // Global reference for UI clicks
 
