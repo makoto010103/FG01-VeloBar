@@ -2085,6 +2085,9 @@
             exHint.textContent = EXERCISE_LABELS[item.dataset.value] || '';
         }, 0); // SQ=0
 
+        // --- Init weight picker (default: 60kg = index 24) ---
+        initPicker(document.getElementById('weight-picker'), null, 24); // 24 * 2.5 = 60kg
+
         // --- Init reps picker (default: 10 reps = index 9) ---
         initPicker(document.getElementById('reps-picker'), null, 9); // default 10 reps (index 9)
 
