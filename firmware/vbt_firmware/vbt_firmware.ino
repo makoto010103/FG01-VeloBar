@@ -311,8 +311,9 @@ void loop() {
         // この処理により、傾きやセンサー固有の定常ノイズによる架空の加速度を根絶する
         float corrected_accel = vertical_accel_mps2 - accel_offset_z;
         
-        // 極小ノイズのデッドゾーン（±0.06m/s^2未満の震えは無視）
-        if (abs(corrected_accel) < 0.06f) {
+        // 極小ノイズのデッドゾーン（±0.02m/s^2未満の震えは無視）
+        // v4.1: 0.06は遅いスクワットの実加速度(0.03-0.05G≈0.3-0.5m/s^2)を殺していたため大幅に緩和
+        if (abs(corrected_accel) < 0.02f) {
             corrected_accel = 0.0f;
         }
 
@@ -332,7 +333,8 @@ void loop() {
             // 挙上が終わり、重力に負けて速度が0に戻ろうとしている（落下加速が始まっている）時のソフトランディング処理
             if (velocity < 0.20f && corrected_accel < -0.5f) {
                 // 勢いが死んで落ち始めているフェーズ。ZUPTが発動するまでの浮き上がりを抑える。
-                velocity *= 0.95f;
+                // v4.1: 0.95は200Hzで回すと10ms毎に5%減衰=170msで消滅。0.985に緩和し、ゆっくり自然減衰させる
+                velocity *= 0.985f;
             } else {
                 // 【真の挙上フェーズ（粘りゾーン含む）】
                 // 係数を `0.9995` に設定し、2秒の粘るスローレップでも実力（積分速度）の80%以上を維持する
@@ -342,10 +344,10 @@ void loop() {
         }
     }
 
-    // --- 安全リミット (解除) ---
-    // Webアプリ側のグラフ表示のみ±5m/sとする
-    // if (velocity > 5.0) velocity = 5.0;
-    // if (velocity < -5.0) velocity = -5.0;
+    // --- 安全リミット (v4.1: 復活) ---
+    // スクワット最速でも~1.3m/s。3.5m/s超は確実にドリフト異常値
+    if (velocity > 3.5f) velocity = 3.5f;
+    if (velocity < -3.5f) velocity = -3.5f;
 
     // --- 5. BLE送信 & ログ ---
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
