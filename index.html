@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeloBar v4.3.0</title>
+    <title>VeloBar v4.3.1</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -843,7 +843,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v4.3.0</span></h1>
+            <h1>VeloBar <span style="font-size: 0.8em; color: var(--primary);">v4.3.1</span></h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="bt-status" class="status-badge">未接続</span>
                 <span id="battery-status" class="status-badge"
@@ -1257,11 +1257,11 @@
 
         // Per-Exercise Velocity Thresholds
         const EXERCISE_THRESHOLDS = {
-            'SQ': { minPeak: 0.15, maxVelocity: 3.5 },  // v4.2.2: FWが2.5m/sを出すため2.0では全レップ棄却されていた
-            'DL': { minPeak: 0.15, maxVelocity: 3.5 },
-            'BP': { minPeak: 0.15, maxVelocity: 3.5 },
-            'CL': { minPeak: 0.50, maxVelocity: 3.5 },
-            'Other': { minPeak: 0.30, maxVelocity: 3.5 },
+            'SQ': { minPeak: 0.15, maxVelocity: 5.0 },
+            'DL': { minPeak: 0.15, maxVelocity: 5.0 },
+            'BP': { minPeak: 0.15, maxVelocity: 5.0 },
+            'CL': { minPeak: 0.50, maxVelocity: 5.0 },
+            'Other': { minPeak: 0.30, maxVelocity: 5.0 },
         };
 
         function getExerciseThresholds() {
@@ -1890,123 +1890,119 @@
                                 const exThresh = getExerciseThresholds();
 
                                 // Peakが閾値以上かチェック（MPVだと低い場合があり弾かれるのを防ぐためPeakで判定）
-                                if (repPeak >= exThresh.minPeak && repPeak < exThresh.maxVelocity && duration > MIN_DURATION_MS) {
-                                    // バウンスノイズフィルター: ベスト速度(MPV基準)の25%以下はノイズとする
-                                    if (setBestVelocity > 0 && repCountInSet >= 1 && repMPV < setBestVelocity * 0.25) {
-                                        setLog(`⚠️ Bounce filtered: MPV ${repMPV.toFixed(2)} < 25% of best`, 'var(--text-dim)');
+                                if (repPeak >= exThresh.minPeak && repPeak <= exThresh.maxVelocity && duration > MIN_DURATION_MS) {
+                                    // Valid Rep
+                                    lastRepTime = now; // 成功または正当なトライアルのみ不感時間を更新
+                                    repCountInSet++;
+                                    setRepData.push(repMPV); // 履歴にはMPVを保存
+
+                                    // Update UI metrics immediately
+                                    document.getElementById('rep-count').innerText = `${repCountInSet} / ${setTargetReps}`;
+                                    document.getElementById('last-rep-max').innerText = repPeak.toFixed(2);
+                                    velDisplay.innerText = repMPV.toFixed(2); // レップ終了でMPVを巨大表示ロック
+
+                                    // Neural Readiness Calculation
+                                    if (repPeak > sessionBestPeak) sessionBestPeak = repPeak;
+                                    let readiness = sessionBestPeak > 0 ? (repPeak / sessionBestPeak) * 100 : 100;
+                                    const readinessUI = document.getElementById('neural-readiness');
+                                    readinessUI.innerText = readiness.toFixed(0) + "%";
+                                    // Change color based on neural state
+                                    if (readiness >= 95) readinessUI.style.color = "var(--good)";
+                                    else if (readiness >= 85) readinessUI.style.color = "var(--warning)";
+                                    else readinessUI.style.color = "var(--stop)";
+
+                                    setLog(`✅ Rep ${repCountInSet}: MPV ${repMPV.toFixed(2)}m/s | Peak ${repPeak.toFixed(2)}m/s`, 'var(--good)');
+
+                                    // --- v4.0 JUDGMENT ENGINE ---
+                                    // 1. Best Velocity Lock Logic (MPV based)
+                                    if (repCountInSet <= 3) {
+                                        if (repMPV > setBestVelocity) {
+                                            setBestVelocity = repMPV;
+                                            document.getElementById('set-best').innerText = setBestVelocity.toFixed(2);
+                                        }
+                                    }
+
+                                    // 2. Fatigue Calculation (MPV based)
+                                    let fatigue = 0;
+                                    if (setBestVelocity > 0) {
+                                        fatigue = ((setBestVelocity - repMPV) / setBestVelocity) * 100;
+                                    }
+                                    fatigue = Math.max(0, fatigue);
+                                    document.getElementById('fatigue-val').innerText = fatigue.toFixed(0) + "%";
+
+                                    // 3. Judgment Logic
+                                    let status = 'good';
+                                    let stopReason = "";
+                                    const threshold = MODES[currentMode].threshold;
+
+                                    if (currentMode === 'POWER' && setBestVelocity < 0.50) {
+                                        showAlert("POWER ZONE OUT");
                                     } else {
-                                        // Valid Rep
-                                        lastRepTime = now; // 成功または正当なトライアルのみ不感時間を更新
-                                        repCountInSet++;
-                                        setRepData.push(repMPV); // 履歴にはMPVを保存
+                                        hideAlert();
+                                    }
 
-                                        // Update UI metrics immediately
-                                        document.getElementById('rep-count').innerText = `${repCountInSet} / ${setTargetReps}`;
-                                        document.getElementById('last-rep-max').innerText = repPeak.toFixed(2);
-                                        velDisplay.innerText = repMPV.toFixed(2); // レップ終了でMPVを巨大表示ロック
-
-                                        // Neural Readiness Calculation
-                                        if (repPeak > sessionBestPeak) sessionBestPeak = repPeak;
-                                        let readiness = sessionBestPeak > 0 ? (repPeak / sessionBestPeak) * 100 : 100;
-                                        const readinessUI = document.getElementById('neural-readiness');
-                                        readinessUI.innerText = readiness.toFixed(0) + "%";
-                                        // Change color based on neural state
-                                        if (readiness >= 95) readinessUI.style.color = "var(--good)";
-                                        else if (readiness >= 85) readinessUI.style.color = "var(--warning)";
-                                        else readinessUI.style.color = "var(--stop)";
-
-                                        setLog(`✅ Rep ${repCountInSet}: MPV ${repMPV.toFixed(2)}m/s | Peak ${repPeak.toFixed(2)}m/s`, 'var(--good)');
-
-                                        // --- v4.0 JUDGMENT ENGINE ---
-                                        // 1. Best Velocity Lock Logic (MPV based)
-                                        if (repCountInSet <= 3) {
-                                            if (repMPV > setBestVelocity) {
-                                                setBestVelocity = repMPV;
-                                                document.getElementById('set-best').innerText = setBestVelocity.toFixed(2);
-                                            }
+                                    let isCriticalDrop = false;
+                                    if (repCountInSet >= 3 && setBestVelocity > 0) {
+                                        if (repMPV < setBestVelocity * (1 - (threshold / 100) - 0.15)) {
+                                            isCriticalDrop = true;
                                         }
+                                    }
 
-                                        // 2. Fatigue Calculation (MPV based)
-                                        let fatigue = 0;
-                                        if (setBestVelocity > 0) {
-                                            fatigue = ((setBestVelocity - repMPV) / setBestVelocity) * 100;
-                                        }
-                                        fatigue = Math.max(0, fatigue);
-                                        document.getElementById('fatigue-val').innerText = fatigue.toFixed(0) + "%";
-
-                                        // 3. Judgment Logic
-                                        let status = 'good';
-                                        let stopReason = "";
-                                        const threshold = MODES[currentMode].threshold;
-
-                                        if (currentMode === 'POWER' && setBestVelocity < 0.50) {
-                                            showAlert("POWER ZONE OUT");
+                                    if (isCriticalDrop) {
+                                        status = 'stop';
+                                        stopReason = "速度低下によりセット終了（安全装置）";
+                                    } else if (fatigue >= threshold + 5) {
+                                        status = 'stop';
+                                        stopReason = "目標疲労度オーバー（セット終了）";
+                                    } else if (fatigue >= threshold) {
+                                        consecutiveWarningCount++;
+                                        if (consecutiveWarningCount >= 2) {
+                                            status = 'stop';
+                                            stopReason = "疲労度閾値に連続到達（セット終了）";
                                         } else {
-                                            hideAlert();
-                                        }
-
-                                        let isCriticalDrop = false;
-                                        if (repCountInSet >= 3 && setBestVelocity > 0) {
-                                            if (repMPV < setBestVelocity * (1 - (threshold / 100) - 0.15)) {
-                                                isCriticalDrop = true;
-                                            }
-                                        }
-
-                                        if (isCriticalDrop) {
-                                            status = 'stop';
-                                            stopReason = "速度低下によりセット終了（安全装置）";
-                                        } else if (fatigue >= threshold + 5) {
-                                            status = 'stop';
-                                            stopReason = "目標疲労度オーバー（セット終了）";
-                                        } else if (fatigue >= threshold) {
-                                            consecutiveWarningCount++;
-                                            if (consecutiveWarningCount >= 2) {
-                                                status = 'stop';
-                                                stopReason = "疲労度閾値に連続到達（セット終了）";
-                                            } else {
-                                                status = 'warning';
-                                            }
-                                        } else if (fatigue >= 15) {
                                             status = 'warning';
-                                            consecutiveWarningCount = 0;
-                                        } else {
-                                            status = 'good';
-                                            consecutiveWarningCount = 0;
                                         }
+                                    } else if (fatigue >= 15) {
+                                        status = 'warning';
+                                        consecutiveWarningCount = 0;
+                                    } else {
+                                        status = 'good';
+                                        consecutiveWarningCount = 0;
+                                    }
 
-                                        // Also check target reps
-                                        if (repCountInSet >= setTargetReps && status !== 'stop') {
-                                            status = 'stop';
-                                            stopReason = "目標回数達成（セット完了）";
-                                        }
+                                    // Also check target reps
+                                    if (repCountInSet >= setTargetReps && status !== 'stop') {
+                                        status = 'stop';
+                                        stopReason = "目標回数達成（セット完了）";
+                                    }
 
-                                        updateStatusColor(status);
+                                    updateStatusColor(status);
 
-                                        if (status === 'stop') {
-                                            toneGen.playStop();
-                                            endSet(stopReason);
-                                        } else if (status === 'warning') {
-                                            toneGen.playWarning();
-                                        } else {
-                                            toneGen.playSuccess();
-                                        }
+                                    if (status === 'stop') {
+                                        toneGen.playStop();
+                                        endSet(stopReason);
+                                        return; // セット終了後は即座に抜ける（余分な処理やログ描画を防ぐ）
+                                    } else if (status === 'warning') {
+                                        toneGen.playWarning();
+                                    } else {
+                                        toneGen.playSuccess();
+                                    }
 
-                                        // Update history tracking variables
-                                        lastRepPeakVelocity = repPeak;
+                                    // Update history tracking variables
+                                    lastRepPeakVelocity = repPeak;
 
-                                        const d = new Date();
-                                        const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
-                                        const changeColor = status === 'good' ? 'var(--good)' : (status === 'warning' ? 'var(--warning)' : 'var(--stop)');
+                                    const d = new Date();
+                                    const timeStr = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+                                    const changeColor = status === 'good' ? 'var(--good)' : (status === 'warning' ? 'var(--warning)' : 'var(--stop)');
 
-                                        logBody.insertAdjacentHTML('afterbegin',
-                                            `<tr>
+                                    logBody.insertAdjacentHTML('afterbegin',
+                                        `<tr>
                                         <td>${timeStr}</td>
                                         <td><strong>${repMPV.toFixed(2)}</strong> <span style="font-size:0.7em; color:var(--text-dim);">/ ${repPeak.toFixed(2)}</span></td>
                                         <td>-</td>
                                         <td style="color:${changeColor}">${fatigue.toFixed(1)}%</td>
                                     </tr>`
-                                        );
-                                    } // end bounce filter else
+                                    );
                                 } else {
                                     let reason = "";
                                     if (repPeak < exThresh.minPeak) reason = `Peak too low (${repPeak.toFixed(2)} < ${exThresh.minPeak})`;
@@ -2020,13 +2016,14 @@
                             if (currentVel > currentPeak) currentPeak = currentVel;
                             belowThresholdStartTime = 0;
                         }
-                    });
+                    }); // end characteristicvaluechanged listener
+
                 } catch (error) {
                     console.error(error);
                     setLog('Error: ' + error.message, '#ef4444');
                 }
-            };
-        });
+            }); // end main-connect-btn listener
+        }); // end DOMContentLoaded
     </script>
 
     <!-- ===== STARTUP PICKER LOGIC ===== -->
