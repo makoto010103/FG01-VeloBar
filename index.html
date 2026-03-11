@@ -862,17 +862,26 @@
 
         <!-- Status Bar -->
         <div
-            style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); align-items: center;">
+            style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); align-items: center; margin-bottom: 8px;">
             <div id="current-setup-info">SET START で設定してください</div>
-            <div>
-                通知音:
-                <select id="sound-select" class="mode-select" style="font-size: 0.75rem; padding: 2px 4px;">
-                    <option value="BELL">ベル</option>
-                    <option value="GAME">ゲーム</option>
-                    <option value="BEEP">電子音</option>
-                    <option value="MECHANICAL">機械音</option>
-                    <option value="OFF">なし</option>
-                </select>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                <div>
+                    自動終了(VBT):
+                    <select id="auto-stop-select" class="mode-select" style="font-size: 0.75rem; padding: 2px 4px;">
+                        <option value="ON">ON</option>
+                        <option value="OFF">OFF</option>
+                    </select>
+                </div>
+                <div>
+                    通知音:
+                    <select id="sound-select" class="mode-select" style="font-size: 0.75rem; padding: 2px 4px;">
+                        <option value="BELL">ベル</option>
+                        <option value="GAME">ゲーム</option>
+                        <option value="BEEP">電子音</option>
+                        <option value="MECHANICAL">機械音</option>
+                        <option value="OFF">なし</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -1948,17 +1957,31 @@
                                         }
                                     }
 
+                                    let isAutoStop = document.getElementById('auto-stop-select').value === 'ON';
+
                                     if (isCriticalDrop) {
-                                        status = 'stop';
-                                        stopReason = "速度低下によりセット終了（安全装置）";
+                                        if (isAutoStop) {
+                                            status = 'stop';
+                                            stopReason = "速度低下によりセット終了（安全装置）";
+                                        } else {
+                                            status = 'warning';
+                                        }
                                     } else if (fatigue >= threshold + 5) {
-                                        status = 'stop';
-                                        stopReason = "目標疲労度オーバー（セット終了）";
+                                        if (isAutoStop) {
+                                            status = 'stop';
+                                            stopReason = "目標疲労度オーバー（セット終了）";
+                                        } else {
+                                            status = 'warning';
+                                        }
                                     } else if (fatigue >= threshold) {
                                         consecutiveWarningCount++;
                                         if (consecutiveWarningCount >= 2) {
-                                            status = 'stop';
-                                            stopReason = "疲労度閾値に連続到達（セット終了）";
+                                            if (isAutoStop) {
+                                                status = 'stop';
+                                                stopReason = "疲労度閾値に連続到達（セット終了）";
+                                            } else {
+                                                status = 'warning';
+                                            }
                                         } else {
                                             status = 'warning';
                                         }
