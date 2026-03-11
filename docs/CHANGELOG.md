@@ -1,3 +1,6 @@
+## v4.3.5 (2026-03-11)
+- **バグ修正（iOS 音声の遅延再生）**: `ToneGenerator` の `resume()` が非同期 Promise を返す `AudioContext.resume()` を `await` せずに呼び出し、その後即座に音を鳴らしていたため、AudioContext が完全に復帰する前に音声生成が実行され、特に最初の数レップで音が鳴らない問題を修正。`resume()` を `async/await` 対応に変更し、`playSuccess()`・`playWarning()`・`playStop()`・`playSetComplete()` の全メソッドも `async` 化。さらに呼び出し元の `characteristicvaluechanged` イベントハンドラ自体も `async` に変更し、全 `toneGen.playXxx()` 呼び出しを `await` するよう修正。
+
 ## v4.3.4 (2026-03-11)
 - **重大なバグ修正 (1/2レップ目無視の完全治癒)**: `isMoving` や `currentRepVelocities` 等の「挙上判定トラッカー」が、新しいセット開始時にクリアされていなかった致命的なバグを修正。これにより、前のセットの終了処理から変数がキャッシュされたまま引き継がれ、次のセットの最初の1〜2回が無音・無反応となる（巨大な持続時間として棄却される）完全に理不尽な不具合がようやく根絶されました。
 

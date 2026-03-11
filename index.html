@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VeloBar v4.3.4</title>
+    <title>VeloBar v4.3.5</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -1153,9 +1153,9 @@
                 this.soundType = type;
             }
 
-            resume() {
+            async resume() {
                 if (this.ctx && this.ctx.state === 'suspended') {
-                    this.ctx.resume();
+                    await this.ctx.resume();
                 }
             }
 
@@ -1202,11 +1202,11 @@
                 osc2.stop(startTime + duration);
             }
 
-            playSuccess() {
+            async playSuccess() {
                 if (this.soundType === 'OFF') return;
 
                 if (!this.ctx) this.init();
-                this.resume();
+                await this.resume();
 
                 const now = this.ctx.currentTime;
 
@@ -1259,10 +1259,10 @@
                 }
             }
 
-            playWarning() {
+            async playWarning() {
                 if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
-                this.resume();
+                await this.resume();
                 const now = this.ctx.currentTime;
                 // 注意を引くが不快すぎない、柔らかな「ポン・ポン」という警告
                 for (let i = 0; i < 2; i++) {
@@ -1270,10 +1270,10 @@
                 }
             }
 
-            playStop() {
+            async playStop() {
                 if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
-                this.resume();
+                await this.resume();
                 const now = this.ctx.currentTime;
                 // 緊急だが耳を劈かない「タロラリッ（低下和音）」のような終了音
                 [880, 740, 659, 523.25].forEach((freq, i) => { // A5, F#5, E5, C5
@@ -1281,10 +1281,10 @@
                 });
             }
 
-            playSetComplete() {
+            async playSetComplete() {
                 if (this.soundType === 'OFF') return;
                 if (!this.ctx) this.init();
-                this.resume();
+                await this.resume();
                 const now = this.ctx.currentTime;
                 // 目標回数達成時の、明るく達成感のあるファンファーレ和音
                 // C5 -> E5 -> G5 -> C6 (Cメジャーアルペジオ)
@@ -1796,7 +1796,7 @@
 
                     let rxCount = 0; // Data Counter
 
-                    characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                    characteristic.addEventListener('characteristicvaluechanged', async (event) => {
                         const raw = event.target.value;
                         const velocity = raw.getFloat32(0, true);
                         let currentVel = Number(velocity.toFixed(3));
@@ -2043,16 +2043,16 @@
 
                                     if (status === 'stop') {
                                         if (stopReason.includes("目標回数達成")) {
-                                            toneGen.playSetComplete();
+                                            await toneGen.playSetComplete();
                                         } else {
-                                            toneGen.playStop();
+                                            await toneGen.playStop();
                                         }
                                         endSet(stopReason);
                                         return; // セット終了後は即座に抜ける（余分な処理やログ描画を防ぐ）
                                     } else if (status === 'warning') {
-                                        toneGen.playWarning();
+                                        await toneGen.playWarning();
                                     } else {
-                                        toneGen.playSuccess();
+                                        await toneGen.playSuccess();
                                     }
 
                                     // Update history tracking variables
