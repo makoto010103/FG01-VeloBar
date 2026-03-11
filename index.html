@@ -1159,6 +1159,22 @@
                 }
             }
 
+            // iOS対策: 無音のオシレーターを一瞬鳴らすことでContextを「アクティブ化（ロック解除）」する
+            // ユーザーアクションの直接のイベントハンドラ内で呼ぶ必要がある
+            unlockAudioContext() {
+                this.init();
+                this.resume();
+                if (this.ctx && this.ctx.state !== 'running') {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    gain.gain.value = 0;
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(0);
+                    osc.stop(0.01);
+                }
+            }
+
             // ヘルパー: 指定タイミングで2つの波形を重ねて鳴らす (FMライクなレイヤー)
             playOsc(type1, type2, freq1, freq2, detune, startTime, duration, vol) {
                 const osc1 = this.ctx.createOscillator();
@@ -1262,6 +1278,20 @@
                 // 緊急だが耳を劈かない「タロラリッ（低下和音）」のような終了音
                 [880, 740, 659, 523.25].forEach((freq, i) => { // A5, F#5, E5, C5
                     this.playOsc('square', 'triangle', freq, freq, 0, now + i * 0.1, 0.2, 0.3);
+                });
+            }
+
+            playSetComplete() {
+                if (this.soundType === 'OFF') return;
+                if (!this.ctx) this.init();
+                this.resume();
+                const now = this.ctx.currentTime;
+                // 目標回数達成時の、明るく達成感のあるファンファーレ和音
+                // C5 -> E5 -> G5 -> C6 (Cメジャーアルペジオ)
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                    // 最後の音は長く伸ばす
+                    const duration = i === 3 ? 0.6 : 0.15;
+                    this.playOsc('square', 'sine', freq, freq * 1.005, 5, now + i * 0.12, duration, 0.4);
                 });
             }
         }
@@ -2006,7 +2036,11 @@
                                     updateStatusColor(status);
 
                                     if (status === 'stop') {
-                                        toneGen.playStop();
+                                        if (stopReason.includes("目標回数達成")) {
+                                            toneGen.playSetComplete();
+                                        } else {
+                                            toneGen.playStop();
+                                        }
                                         endSet(stopReason);
                                         return; // セット終了後は即座に抜ける（余分な処理やログ描画を防ぐ）
                                     } else if (status === 'warning') {
@@ -2168,8 +2202,9 @@
 
         // --- Confirm and close modal ---
         function confirmSetup() {
-            // Audio Contextのサスペンド復帰（iOS対策）
-            if (window.toneGen) window.toneGen.resume();
+            // Audio Contextのサスペンド復帰および完全アンロック（iOS対策）
+            // ※ボタンクリックの同期実行ツリー内で行わないとiOSは無視するため、専用メソッドを呼ぶ
+            if (window.toneGen) window.toneGen.unlockAudioContext();
 
             const exActive = document.querySelector('#exercise-picker .picker-item.active');
             const wtActive = document.querySelector('#weight-picker .picker-item.active');
@@ -2233,9 +2268,7 @@
 
             function playCountdownBeep(isLast) {
                 try {
-                    if (!window.toneGen) return;
-                    if (!window.toneGen.ctx) window.toneGen.init();
-                    window.toneGen.resume();
+                    if (!window.toneGen || !window.toneGen.ctx) return;
                     const actx = window.toneGen.ctx;
 
                     const osc = actx.createOscillator();
