@@ -292,8 +292,7 @@ void loop() {
 
     // --- 3.5 回転検知 (Rotation Clamp) ---
     if (gyro_mag > 800.0f) {
-        vertical_accel_mps2 = 0;
-        velocity *= 0.80f;
+        is_static = true;
     }
 
     // --- 4. 速度積分 (ZUPTオフセット適用と動的リーキー積分) ---
@@ -333,10 +332,10 @@ void loop() {
         }
     }
 
-    // --- 安全リミット (v4.1: 復活) ---
-    // スクワット最速でも~1.3m/s。3.5m/s超は確実にドリフト異常値
-    if (velocity > 3.5f) velocity = 3.5f;
-    if (velocity < -3.5f) velocity = -3.5f;
+    // --- 安全リミット ---
+    // ドリフト異常値対策 (最大5.0m/sに変更、アプリ側の上限に適合)
+    if (velocity > 5.0f) velocity = 5.0f;
+    if (velocity < -5.0f) velocity = -5.0f;
 
     // --- 5. BLE送信 & ログ ---
     if (now_millis - lastBleTime >= BLE_INTERVAL_MS) {
