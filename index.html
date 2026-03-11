@@ -1090,7 +1090,11 @@
                 // Countdown beep function
                 function playCountdownBeep(isLast) {
                     try {
-                        const actx = new (window.AudioContext || window.webkitAudioContext)();
+                        if (!window.toneGen) return;
+                        if (!window.toneGen.ctx) window.toneGen.init();
+                        window.toneGen.resume();
+                        const actx = window.toneGen.ctx;
+
                         const osc = actx.createOscillator();
                         const gain = actx.createGain();
                         osc.connect(gain);
@@ -2229,7 +2233,11 @@
 
             function playCountdownBeep(isLast) {
                 try {
-                    const actx = new (window.AudioContext || window.webkitAudioContext)();
+                    if (!window.toneGen) return;
+                    if (!window.toneGen.ctx) window.toneGen.init();
+                    window.toneGen.resume();
+                    const actx = window.toneGen.ctx;
+
                     const osc = actx.createOscillator();
                     const gain = actx.createGain();
                     osc.connect(gain);
