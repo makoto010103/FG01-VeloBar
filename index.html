@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VeloBar v4.3.5</title>
+    <title>VeloBar v4.3.6</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -1172,6 +1172,28 @@
                     gain.connect(this.ctx.destination);
                     osc.start(0);
                     osc.stop(0.01);
+                }
+                // iOS対策: 無音ループでAudioContextを常に'running'で維持する
+                // セット中に自動サスペンドされると、BLEイベントからの非ユーザージェスチャcontext.resume()プロミスが永遠に解決しない問題を鎌止
+                this.startSilentKeepalive();
+            }
+
+            // 無音AudioBufferをループで再生し、iOSがAudioContextをサスペンドしないようにする
+            startSilentKeepalive() {
+                if (!this.ctx || this.silentSource) return; // 既に起動済みなら何もしない
+                try {
+                    const buf = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+                    const src = this.ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.loop = true;
+                    const gain = this.ctx.createGain();
+                    gain.gain.value = 0; // 完全無音
+                    src.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    src.start(0);
+                    this.silentSource = src;
+                } catch (e) {
+                    console.warn('startSilentKeepalive failed:', e);
                 }
             }
 

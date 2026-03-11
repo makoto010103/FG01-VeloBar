@@ -1,3 +1,6 @@
+## v4.3.6 (2026-03-12)
+- **バグ修正（iOS 音声の継続的サスペンド問題）**: v4.3.5の `async/await` 対応だけでは不十分だった問題を根本解決。v4.3.5では「レップ1は鳴るが2・3は鳴らない」という新たな症状が発生していた。原因はiOSのAutoplay制限により、ユーザー操作（START）から数秒後にAudioContextが自動的に再サスペンドされることで、BLEコールバック（非ユーザージェスチャー）からの `AudioContext.resume()` が返すPromiseが永遠に解決しない（ハング）状態に陥っていたため。`ToneGenerator` に `startSilentKeepalive()` メソッドを追加し、STARTボタン押下（`confirmSetup()` → `unlockAudioContext()`）と同時に無音の `AudioBufferSource`（gain=0）をループ再生し続けることで、AudioContextを常に `running` 状態に保つよう修正。
+
 ## v4.3.5 (2026-03-11)
 - **バグ修正（iOS 音声の遅延再生）**: `ToneGenerator` の `resume()` が非同期 Promise を返す `AudioContext.resume()` を `await` せずに呼び出し、その後即座に音を鳴らしていたため、AudioContext が完全に復帰する前に音声生成が実行され、特に最初の数レップで音が鳴らない問題を修正。`resume()` を `async/await` 対応に変更し、`playSuccess()`・`playWarning()`・`playStop()`・`playSetComplete()` の全メソッドも `async` 化。さらに呼び出し元の `characteristicvaluechanged` イベントハンドラ自体も `async` に変更し、全 `toneGen.playXxx()` 呼び出しを `await` するよう修正。
 
