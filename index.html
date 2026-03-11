@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VeloBar v4.3.6</title>
+    <title>VeloBar v4.3.7</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -903,7 +903,7 @@
             <!-- Alerts -->
             <div id="alert-banner" class="alert-banner">パワーゾーン圏外</div>
 
-            <div class="sub-metrics" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="sub-metrics" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                 <div class="sub-metric">
                     <span class="label">回数</span>
                     <span id="rep-count" class="value">0 / --</span>
@@ -911,6 +911,10 @@
                 <div class="sub-metric">
                     <span class="label">Peak (m/s)</span>
                     <span id="last-rep-max" class="value">0.00</span>
+                </div>
+                <div class="sub-metric">
+                    <span class="label">Best (m/s)</span>
+                    <span id="set-best" class="value" style="color:var(--primary);">0.00</span>
                 </div>
                 <div class="sub-metric">
                     <span class="label">対ベスト疲労度</span>
@@ -1989,7 +1993,8 @@
                                     if (repCountInSet <= 3) {
                                         if (repMPV > setBestVelocity) {
                                             setBestVelocity = repMPV;
-                                            document.getElementById('set-best').innerText = setBestVelocity.toFixed(2);
+                                            const setBestEl = document.getElementById('set-best');
+                                            if (setBestEl) setBestEl.innerText = setBestVelocity.toFixed(2);
                                         }
                                     }
 

@@ -1,3 +1,6 @@
+## v4.3.7 (2026-03-12)
+- **【重大バグ修正】初期レップでUIと音が反応しない問題の根本原因を特定・修正**: HTMLに `id="set-best"` の要素が存在しないにも関わらず、JSコードの判定エンジン内で `document.getElementById('set-best').innerText = ...` を呼び出していたため、新記録更新時（`repCountInSet <= 3` かつ `repMPV > setBestVelocity`）に **TypeError（null参照）** が発生。このエラーにより `updateStatusColor()` と `toneGen.playSuccess()` が一切呼ばれなくなり、最初の1〜2レップで音が鳴らずカードの色も変わらない症状が発生していた。修正：`id="set-best"` のベスト速度表示素子をHTMLのサブメトリクスエリアに追加（3列グリッドに拡張）し、JSコード側にもnullガードを実装。
+
 ## v4.3.6 (2026-03-12)
 - **バグ修正（iOS 音声の継続的サスペンド問題）**: v4.3.5の `async/await` 対応だけでは不十分だった問題を根本解決。v4.3.5では「レップ1は鳴るが2・3は鳴らない」という新たな症状が発生していた。原因はiOSのAutoplay制限により、ユーザー操作（START）から数秒後にAudioContextが自動的に再サスペンドされることで、BLEコールバック（非ユーザージェスチャー）からの `AudioContext.resume()` が返すPromiseが永遠に解決しない（ハング）状態に陥っていたため。`ToneGenerator` に `startSilentKeepalive()` メソッドを追加し、STARTボタン押下（`confirmSetup()` → `unlockAudioContext()`）と同時に無音の `AudioBufferSource`（gain=0）をループ再生し続けることで、AudioContextを常に `running` 状態に保つよう修正。
 
