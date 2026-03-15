@@ -892,7 +892,7 @@
 
         <!-- Metric Card & Sub Metrics (Added Set Progress) -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <div id="set-progress" class="set-progress">SET 1 / 3</div>
+            <div id="set-progress" class="set-progress" style="display: none;">SET 1 / 3</div>
             <!-- Alert is now absolutely positioned inside the card below -->
         </div>
 
@@ -1396,6 +1396,15 @@
             hideAlert();
         }
 
+        window.resetMax = function () {
+            resetSetState();
+            currentSetCount = 1; // 完全にアプリをリセットする場合はセットカウントも戻す
+            document.getElementById('set-progress').style.display = 'none';
+            document.getElementById('log-body').innerHTML = ""; // Clear table on reset
+            document.getElementById('current-setup-info').innerText = 'SET START で設定してください';
+            // Stop recording & UI update handleStartSet side handled by endSet
+        }
+
 
         function handleStartSet() {
             // Audio Contextのサスペンド復帰（iOS対策）
@@ -1690,8 +1699,14 @@
 
         window.resetMax = function () {
             resetSetState();
-            /* Also clear log logic if needed */
+            currentSetCount = 1;
+            document.getElementById('set-progress').style.display = 'none';
             document.getElementById('log-body').innerHTML = ""; // Clear table on reset
+            document.getElementById('current-setup-info').innerText = 'SET START で設定してください';
+            // 必要に応じてタイマー等も止める
+            if (isSetRunning) {
+                endSet("STOP BOTTON PRESSED");
+            }
         }
 
         window.addEventListener('load', () => {
@@ -2300,12 +2315,10 @@
             // Hard reset workout state on new configuration
             currentSetCount = 1;
             document.getElementById('log-body').innerHTML = ""; // Clear logs for new workout
-            document.getElementById('set-progress').innerText = `SET ${currentSetCount} / ${setTargetSets}`;
 
             // Update UI info
             const modeName = document.getElementById('mode-select').options[document.getElementById('mode-select').selectedIndex].text;
             document.getElementById('current-setup-info').innerText = `${EXERCISE_LABELS[currentExercise] || currentExercise} / ${currentWeight}kg / 目標 ${setTargetReps} reps`;
-
             // Close modal visually first
             const modal = document.getElementById('startup-modal');
             modal.style.transition = 'opacity 0.3s ease';
@@ -2321,7 +2334,9 @@
             isCountingDown = true;
 
             resetSetState(); // Reset UI immediately (velocity, fatigue)
-            document.getElementById('set-progress').innerText = `SET ${currentSetCount} / ${setTargetSets}`;
+            const setProgressEl = document.getElementById('set-progress');
+            setProgressEl.style.display = 'block';
+            setProgressEl.innerText = `SET ${currentSetCount} / ${setTargetSets}`;
 
             // Setup UI for countdown
             const btn = document.getElementById('main-start-btn');
