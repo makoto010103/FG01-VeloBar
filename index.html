@@ -1413,7 +1413,7 @@
                 document.getElementById('reps-picker').scrollTop = 9 * 46; // 10reps = 9 * 46
 
                 // Add defaults for new pickers
-                document.getElementById('sets-picker').scrollTop = 2 * 46; // 3 sets = index 2
+                document.getElementById('sets-picker').scrollTop = 0 * 46; // 1 set = index 0
                 document.getElementById('rest-picker').scrollTop = 2 * 46; // 2.0 min = index 2
 
                 // Small delay to allow display to apply before opacity transition
@@ -2255,11 +2255,11 @@
         initPicker(document.getElementById('reps-picker'), null, 9); // default 10 reps (index 9)
 
         // --- Init sets picker (default: 3 sets = index 2) ---
-        initPicker(document.getElementById('sets-picker'), null, 2);
+        initPicker(document.getElementById('sets-picker'), null, 0); // default: 1 set
 
         // --- Init rest picker (default: 2.0 min = index 2) ---
         // 1.0, 1.5, 2.0 -> index 2
-        initPicker(document.getElementById('rest-picker'), null, 2);
+        initPicker(document.getElementById('rest-picker'), null, 0); // default: 1.0 min
 
         // --- Cancel and close modal (設定画面を閉じてメイン画面に戻る) ---
         function cancelSetup() {
