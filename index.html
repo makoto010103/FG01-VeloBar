@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VeloBar v4.3.7</title>
+    <title>VeloBar v4.3.9</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
@@ -813,6 +813,11 @@
                 </div>
             </div>
             <button class="btn-start" onclick="confirmSetup()">RECORD SET</button>
+            <!-- キャンセルボタン: 設定画面を閉じてメイン画面に戻る -->
+            <button onclick="cancelSetup()"
+                style="width:100%; margin-top:10px; padding:12px; background:transparent; color:var(--text-dim); font-family:'Inter',sans-serif; font-size:0.9rem; border:1px solid #334155; border-radius:12px; cursor:pointer; transition:all 0.2s;"
+                onmouseover="this.style.borderColor='#64748b'; this.style.color='var(--text)';"
+                onmouseout="this.style.borderColor='#334155'; this.style.color='var(--text-dim)';">✕ キャンセル</button>
         </div>
     </div>
 
@@ -843,7 +848,7 @@
 
     <div class="header">
         <div class="header-left">
-            <h1>VeloBar <span style="font-size: 0.9rem; color: var(--text-dim); font-weight: 500;">v4.3.4</span></h1>
+            <h1>VeloBar <span style="font-size: 0.9rem; color: var(--text-dim); font-weight: 500;">v4.3.9</span></h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="bt-status" class="status-badge">未接続</span>
                 <span id="battery-status" class="status-badge"
@@ -1381,6 +1386,7 @@
             belowThresholdStartTime = 0;
             currentRepVelocities = [];
             currentPeak = 0;
+            peakReached = false; // ピーク到達フラグもリセット
             lastRepTime = 0; // Lockoutもリセット
             document.getElementById('rep-count').innerText = `0 / ${setTargetReps}`;
             document.getElementById('last-rep-max').innerText = "0.00";
@@ -1697,6 +1703,7 @@
             let device, characteristic;
             let currentPeak = 0;
             let isMoving = false;
+            let peakReached = false; // 【再発防止】挙上フェーズで十分なピークに達したかを示すフラグ
             let moveStartTime = 0;
             let lastRepTime = 0; // For Lockout
             let belowThresholdStartTime = 0; // 終了判定の待機用
@@ -1801,6 +1808,9 @@
                     connectBtn.innerHTML = "<span>✅</span> Linked";
                     connectBtn.disabled = true;
 
+                    // 接続成功時の音（ウェルカムチャイム）
+                    toneGen.playSuccess();
+
                     // --- Battery Service Connection ---
                     try {
                         const batteryService = await server.getPrimaryService('battery_service');
@@ -1875,6 +1885,7 @@
                         if (currentVel > START_THRESHOLD) {
                             if (!isMoving && (now - lastRepTime > LOCKOUT_MS)) {
                                 isMoving = true;
+                                peakReached = false; // 新しいレップ開始時にフラグをリセット
                                 moveStartTime = now;
                                 currentPeak = 0;
                                 currentRepVelocities = []; // リセット
@@ -1884,20 +1895,37 @@
                                 if (currentVel > currentPeak) {
                                     currentPeak = currentVel;
                                 }
+                                // 【再発防止】挙上ピーク到達の判定:
+                                // minPeak閾値を超えた速度を記録した = 確実に挙上していると判断
+                                const exThreshPeak = getExerciseThresholds().minPeak;
+                                if (currentPeak >= exThreshPeak) {
+                                    peakReached = true;
+                                }
                                 // 閾値を超えている間は終了カウンターをリセット
                                 belowThresholdStartTime = 0;
                             }
                         } else if (isMoving && currentVel < END_THRESHOLD) {
                             currentRepVelocities.push(currentVel); // 減速中も一旦保存し続ける
-                            // 終了判定の遅延 (350ms連続で閾値を下回った場合のみ終了とみなす。スクワットのボトムパウズ対策)
+                            // 終了判定の遅延 (200ms連続で閾値を下回った場合のみ終了とみなす)
                             if (belowThresholdStartTime === 0) {
                                 belowThresholdStartTime = now;
                             }
 
                             if (now - belowThresholdStartTime > 200) {
-                                // End of Rep Logic
                                 isMoving = false;
                                 belowThresholdStartTime = 0;
+
+                                // 【再発防止】peakReachedがfalseの場合は「ボトムで拾った偽レップ」として破棄
+                                // これにより「一番下に行ったら音が鳴る」バグが根本から排除される
+                                if (!peakReached) {
+                                    currentRepVelocities = [];
+                                    currentPeak = 0;
+                                    return; // 音を鳴らさず、レップカウントもせずに終了
+                                }
+
+                                peakReached = false; // フラグをリセット
+                                // End of Rep Logic
+                                // (下記の処理に続く)
 
                                 // --- v4 MPV Calculation (デュアルフィルタリング＆絶対値Slackカット＆算術平均) ---
                                 let rawArray = currentRepVelocities;
@@ -2232,6 +2260,14 @@
         // --- Init rest picker (default: 2.0 min = index 2) ---
         // 1.0, 1.5, 2.0 -> index 2
         initPicker(document.getElementById('rest-picker'), null, 2);
+
+        // --- Cancel and close modal (設定画面を閉じてメイン画面に戻る) ---
+        function cancelSetup() {
+            const modal = document.getElementById('startup-modal');
+            modal.style.transition = 'opacity 0.3s ease';
+            modal.style.opacity = '0';
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
 
         // --- Confirm and close modal ---
         function confirmSetup() {
