@@ -240,9 +240,9 @@ void loop() {
     // ただしMadgwickの座標系定義に注意が必要。
     float vertical_accel_g = (lin_acc_x * gravity_x) + (lin_acc_y * gravity_y) + (lin_acc_z * gravity_z);
 
-    // G -> m/s^2 に変換。（上向きを正とするためマイナスをかける）
-    // 重力ベクトルは下向きなので、内積を取ると下向き加速がプラスになってしまうため反転が必要。
-    float vertical_accel_mps2 = -(vertical_accel_g * 9.80665);
+    // G -> m/s^2 に変換。（上向きを正とするためマイナスを除去）
+    // ※v4.3.0での反転処理が実は逆効果だったため、元の符号に戻して「挙上がプラス」となるように修正。
+    float vertical_accel_mps2 = vertical_accel_g * 9.80665;
 
     // --- 3. 静止判定 (Zero Velocity Update) ---
     // ジャイロの動きと加速度の変動の両方を見る
